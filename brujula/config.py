@@ -48,6 +48,11 @@ class Config:
     cron_key: str = field(default_factory=lambda: _env("CRON_KEY"))
     export_bucket: str = field(default_factory=lambda: _env("EXPORT_BUCKET"))
     cors_origins: str = field(default_factory=lambda: _env("CORS_ORIGINS", "*"))
+    cognito_user_pool_id: str = field(default_factory=lambda: _env("COGNITO_USER_POOL_ID"))
+    cognito_client_id: str = field(default_factory=lambda: _env("COGNITO_CLIENT_ID"))
+    cognito_client_secret: str = field(default_factory=lambda: _env("COGNITO_CLIENT_SECRET"))
+    cognito_domain: str = field(default_factory=lambda: _env("COGNITO_DOMAIN"))           # p. ej. brujula.auth.us-east-1.amazoncognito.com
+    session_secret: str = field(default_factory=lambda: _env("SESSION_SECRET") or os.urandom(32).hex())
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL", "http://localhost:8000"))
     socrata_app_token: str = field(default_factory=lambda: _env("SOCRATA_APP_TOKEN"))
     denue_token: str = field(default_factory=lambda: _env("DENUE_TOKEN"))

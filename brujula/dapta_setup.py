@@ -33,11 +33,14 @@ VARIABLES_POST_LLAMADA = [
 
 
 def configurar(crear_agente: bool = True, crear_secuencia: bool = True) -> dict:
+    from datetime import date
     mcp = DaptaMCP()
     salida = {}
     archivo = RAIZ / "data" / "dapta.json"
     previo = json.loads(archivo.read_text(encoding="utf-8")) if archivo.exists() else {}
     agent_id = config.dapta_agent_id or previo.get("agent_id", "")
+    # El webhook post-llamada exige https: en local se omite y se fija al desplegar (los resultados también se leen por list_calls).
+    webhook = f"{config.public_base_url.rstrip('/')}/webhook/dapta" if config.public_base_url.startswith("https://") else None
     if crear_agente and not agent_id:
         r = mcp.crear_agente_voz(
             agent_name="Brújula · calificador",
@@ -49,7 +52,7 @@ def configurar(crear_agente: bool = True, crear_secuencia: bool = True) -> dict:
             identity_name="Angie",
             voice=VOZ_BOGOTA,
             post_call_analysis_data=VARIABLES_POST_LLAMADA,
-            dapta_webhook=f"{config.public_base_url.rstrip('/')}/webhook/dapta",
+            dapta_webhook=webhook,
             voicemail_option={"action": {"type": "hangup"}},
             enable_voicemail_detection=True,
             analysis_summary_prompt="Resume en dos frases, en español, qué dijo la empresa y si quiere una demostración.",
@@ -63,7 +66,7 @@ def configurar(crear_agente: bool = True, crear_secuencia: bool = True) -> dict:
         seq_id = r.get("sequence_id") or (r.get("sequence") or {}).get("id") or (r.get("sequence") or {}).get("sequence_id", "")
         salida["secuencia"] = {"sequence_id": seq_id, "verified": r.get("verified")}
         if seq_id:
-            salida["reglas"] = mcp.reglas_secuencia(seq_id, REGLAS_LEY_2300)
+            salida["reglas"] = mcp.reglas_secuencia(seq_id, REGLAS_LEY_2300, start_date=date.today().isoformat())
     datos = {"agent_id": agent_id, "sequence_id": seq_id, "workspace": (mcp.whoami().get("workspace") or {}).get("id", "")}
     archivo.parent.mkdir(parents=True, exist_ok=True)
     archivo.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")

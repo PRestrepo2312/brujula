@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlmodel import func, select
 
-from .. import metrics, pipeline, storage
+from .. import auth, metrics, pipeline, storage
 from ..compliance import ahora_local, cargar_rne_csv, proxima_ventana, ventana_permitida
 from ..config import config
 from ..db import crear_tablas, sesion
@@ -20,10 +20,56 @@ from ..ingest import ingerir_csv
 from ..models import Bitacora, Calificacion, Intento, Lead, Lote
 
 app = FastAPI(title="Brújula", docs_url="/api/docs", openapi_url="/api/openapi.json",
-              description="API de Brújula: fuentes, leads, lotes, métricas, archivos y webhooks. Un front separado consume estas rutas.")
+              description="API de Brújula: fuentes, leads, lotes, métricas, archivos y webhooks. Un front separado consume estas rutas con un JWT de Cognito.")
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in config.cors_origins.split(",")], allow_methods=["*"], allow_headers=["*"])
 plantillas = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 crear_tablas()
+cognito = auth.Cognito()
+
+
+@app.middleware("http")
+async def exigir_login(request: Request, call_next):
+    """Con Cognito activo: todo exige usuario salvo las rutas públicas (enlaces del correo, webhooks, salud, cron con clave)."""
+    ruta = request.url.path
+    usuario = auth.usuario_desde(request, cognito)
+    request.state.usuario = usuario
+    if cognito.activo and usuario is None and not auth.es_publica(ruta):
+        if ruta.startswith("/api/"):
+            return JSONResponse({"error": "autenticación requerida: Bearer JWT de Cognito"}, status_code=401)
+        return RedirectResponse(f"/login?next={ruta}", status_code=303)
+    return await call_next(request)
+
+
+@app.get("/login")
+def login(request: Request, next: str = "/"):
+    if not cognito.activo:
+        return RedirectResponse("/", status_code=303)
+    redirect_uri = f"{config.public_base_url.rstrip('/')}/callback"
+    return RedirectResponse(cognito.url_login(redirect_uri, auth.firmar_estado(next)), status_code=303)
+
+
+@app.get("/callback")
+def callback(request: Request, code: str = "", state: str = ""):
+    if not cognito.activo or not code:
+        return RedirectResponse("/", status_code=303)
+    redirect_uri = f"{config.public_base_url.rstrip('/')}/callback"
+    tokens = cognito.canjear_codigo(code, redirect_uri)
+    claims = cognito.verificar(tokens["id_token"])
+    resp = RedirectResponse(auth.leer_estado(state), status_code=303)
+    resp.set_cookie(auth.COOKIE, auth.crear_cookie(claims), max_age=auth.DURACION_SESION_SEG, httponly=True, secure=config.public_base_url.startswith("https"), samesite="lax")
+    return resp
+
+
+@app.get("/logout")
+def logout():
+    resp = RedirectResponse(cognito.url_logout(config.public_base_url.rstrip("/") + "/login") if cognito.activo else "/", status_code=303)
+    resp.delete_cookie(auth.COOKIE)
+    return resp
+
+
+@app.get("/api/yo")
+def api_yo(request: Request):
+    return {"usuario": request.state.usuario, "login_activo": cognito.activo}
 
 
 class LoteEntrada(BaseModel):
@@ -51,8 +97,9 @@ class ProcesarEntrada(BaseModel):
 
 def ctx(request: Request, **extra) -> dict:
     ok, razon = ventana_permitida()
+    usuario = getattr(request.state, "usuario", None) or {}
     return {"request": request, "ventana_ok": ok, "ventana_razon": razon, "ahora": ahora_local().strftime("%a %d %b, %H:%M"),
-            "proxima": proxima_ventana().strftime("%a %d %b, %H:%M"), **extra}
+            "proxima": proxima_ventana().strftime("%a %d %b, %H:%M"), "usuario": usuario, "login_activo": cognito.activo, **extra}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -103,8 +150,9 @@ def lead_revision(lead_id: int, decision: str = Form(...)):
 
 
 @app.post("/lote/nuevo")
-def lote_nuevo(n: int = Form(20), modo: str = Form("brujula"), usuario: str = Form(""), motivo_override: str = Form("")):
-    r = pipeline.preparar_lote(n=n, modo=modo, usuario=usuario, motivo_override=motivo_override)
+def lote_nuevo(request: Request, n: int = Form(20), modo: str = Form("brujula"), usuario: str = Form(""), motivo_override: str = Form("")):
+    quien = (getattr(request.state, "usuario", None) or {}).get("email") if cognito.activo else usuario
+    r = pipeline.preparar_lote(n=n, modo=modo, usuario=quien or usuario, motivo_override=motivo_override)
     if "error" in r:
         return RedirectResponse(f"/?aviso={r['error']}", status_code=303)
     pipeline.ejecutar_lote(r["lote_id"])

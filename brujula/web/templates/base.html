@@ -36,7 +36,10 @@ a{color:var(--navy)}.sec{color:var(--sec);font-size:12px}
 <header>
   <div class="marca"><i></i> BRÚJULA · JFB DEVS</div>
   <nav><a href="/">Tablero</a><a href="/leads">Leads</a><a href="/leads?estado=revisar">Por revisar</a><a href="/api/docs">API</a></nav>
-  <div class="ventana {{ 'ok' if ventana_ok else 'no' }}">{{ ahora }} · {{ ventana_razon }}{% if not ventana_ok %} · próxima: {{ proxima }}{% endif %}</div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <div class="ventana {{ 'ok' if ventana_ok else 'no' }}">{{ ahora }} · {{ ventana_razon }}{% if not ventana_ok %} · próxima: {{ proxima }}{% endif %}</div>
+    {% if login_activo %}<div class="ventana">{{ usuario.email }} · <a href="/logout">salir</a></div>{% else %}<div class="ventana no">sin login (modo local)</div>{% endif %}
+  </div>
 </header>
 <main>{% block cuerpo %}{% endblock %}</main>
 </body>

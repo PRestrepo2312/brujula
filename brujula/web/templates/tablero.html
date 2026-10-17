@@ -47,7 +47,7 @@
       {% if not ventana_ok %}
       <div class="aviso">Fuera de la ventana de la Ley 2300 ({{ ventana_razon }}). Para contactar igual, escriba quién autoriza y el motivo: queda en la bitácora.</div>
       <div class="fila c2" style="margin:0 0 10px">
-        <div><label>Autoriza</label><input name="usuario" placeholder="nombre"></div>
+        <div><label>Autoriza</label>{% if login_activo %}<input name="usuario" value="{{ usuario.email }}" readonly>{% else %}<input name="usuario" placeholder="nombre">{% endif %}</div>
         <div><label>Motivo del override</label><input name="motivo_override" placeholder="p. ej. demo con números del equipo"></div>
       </div>
       {% else %}<input type="hidden" name="usuario" value=""><input type="hidden" name="motivo_override" value="">{% endif %}

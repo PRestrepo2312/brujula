@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Brújula, usuarios: User Pool de Cognito (solo cuentas creadas por el administrador), cliente con flujo de código y dominio alojado.
+
+Parameters:
+  CallbackUrl:
+    Type: String
+    Description: URL de retorno del servidor, p. ej. https://xxxx.us-east-1.awsapprunner.com/callback
+  LogoutUrl:
+    Type: String
+    Description: p. ej. https://xxxx.us-east-1.awsapprunner.com/login
+  DomainPrefix:
+    Type: String
+    Default: brujula-jfb
+    Description: Prefijo del dominio alojado de Cognito (único en la región).
+  FrontCallbackUrl:
+    Type: String
+    Default: ""
+    Description: URL de retorno del front en CloudFront (vacío si no hay front separado).
+
+Conditions:
+  HayFront: !Not [!Equals [!Ref FrontCallbackUrl, ""]]
+
+Resources:
+  Pool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: brujula
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy: {MinimumLength: 12, RequireLowercase: true, RequireNumbers: true, RequireUppercase: true, RequireSymbols: false}
+      Schema:
+        - {Name: email, Required: true, Mutable: true}
+  Cliente:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: brujula-web
+      UserPoolId: !Ref Pool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs: !If [HayFront, [!Ref CallbackUrl, !Ref FrontCallbackUrl], [!Ref CallbackUrl]]
+      LogoutURLs: [!Ref LogoutUrl]
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 12
+      IdTokenValidity: 12
+      TokenValidityUnits: {AccessToken: hours, IdToken: hours}
+  Dominio:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref DomainPrefix
+      UserPoolId: !Ref Pool
+
+Outputs:
+  UserPoolId:
+    Value: !Ref Pool
+  ClientId:
+    Value: !Ref Cliente
+  Domain:
+    Value: !Sub "${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+  CrearUsuario:
+    Value: !Sub "aws cognito-idp admin-create-user --user-pool-id ${Pool} --username correo@dominio --user-attributes Name=email,Value=correo@dominio Name=email_verified,Value=true"

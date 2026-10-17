@@ -28,5 +28,22 @@ aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$
   --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
     DaptaApiKey="${DAPTA_API_KEY:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailFrom="${EMAIL_FROM:-Brújula <hola@example.com>}"
 
+URL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --query "Stacks[0].Outputs[?OutputKey=='Url'].OutputValue" --output text)
+echo "Servicio: $URL"
+
+# Paso 2: Cognito necesita la URL del servicio, y el servicio necesita los ids de Cognito: dos pasos, una vez.
+aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --template-file deploy/cognito.yml \
+  --parameter-overrides CallbackUrl="$URL/callback" LogoutUrl="$URL/login" DomainPrefix="${COGNITO_PREFIX:-brujula-jfb}" FrontCallbackUrl="${FRONT_CALLBACK_URL:-}"
+POOL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+CLIENTE=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
+DOMINIO=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='Domain'].OutputValue" --output text)
+SESION="${SESSION_SECRET:-$(openssl rand -hex 32)}"
+aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --template-file deploy/cloudformation.yml \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
+    DaptaApiKey="${DAPTA_API_KEY:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailFrom="${EMAIL_FROM:-Brújula <hola@example.com>}" \
+    CognitoUserPoolId="$POOL" CognitoClientId="$CLIENTE" CognitoDomain="$DOMINIO" SessionSecret="$SESION" PublicBaseUrl="$URL"
+
 aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --query 'Stacks[0].Outputs' --output table
-echo "Después: ponga la URL de salida como PUBLIC_BASE_URL (webhook de Dapta y enlaces de correo) y vuelva a correr cli.py dapta-setup si cambió."
+echo "Usuarios: aws cognito-idp admin-create-user --user-pool-id $POOL --username correo --user-attributes Name=email,Value=correo Name=email_verified,Value=true --profile $PERFIL"
+echo "Dapta: corra 'python cli.py dapta-setup' con PUBLIC_BASE_URL=$URL para que el webhook post-llamada apunte al servicio."

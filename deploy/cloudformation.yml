@@ -34,6 +34,24 @@ Parameters:
     Type: String
     Default: "*"
     Description: Orígenes permitidos para la API (el dominio del front en CloudFront), separados por coma.
+  CognitoUserPoolId:
+    Type: String
+    Default: ""
+  CognitoClientId:
+    Type: String
+    Default: ""
+  CognitoDomain:
+    Type: String
+    Default: ""
+    Description: p. ej. brujula-jfb.auth.us-east-1.amazoncognito.com (salida de deploy/cognito.yml). Vacío = servidor abierto.
+  SessionSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+  PublicBaseUrl:
+    Type: String
+    Default: ""
+    Description: URL pública del servicio (salida Url de esta misma pila). Vacío en el primer despliegue.
 
 Resources:
   # --- Base de datos ---
@@ -70,6 +88,7 @@ Resources:
       Name: brujula/env
       SecretString: !Sub |
         {"DAPTA_API_KEY":"${DaptaApiKey}","OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}",
+         "SESSION_SECRET":"${SessionSecret}",
          "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
 
   # --- App Runner ---
@@ -112,6 +131,7 @@ Resources:
               - {Name: OPENROUTER_API_KEY, Value: !Sub "${Secreto}:OPENROUTER_API_KEY::"}
               - {Name: RESEND_API_KEY, Value: !Sub "${Secreto}:RESEND_API_KEY::"}
               - {Name: CRON_KEY, Value: !Sub "${Secreto}:CRON_KEY::"}
+              - {Name: SESSION_SECRET, Value: !Sub "${Secreto}:SESSION_SECRET::"}
               - {Name: DATABASE_URL, Value: !Sub "${Secreto}:DATABASE_URL::"}
             RuntimeEnvironmentVariables:
               - {Name: TZ, Value: America/Bogota}
@@ -119,6 +139,10 @@ Resources:
               - {Name: AWS_REGION, Value: !Ref "AWS::Region"}
               - {Name: EXPORT_BUCKET, Value: !Ref Exportaciones}
               - {Name: CORS_ORIGINS, Value: !Ref CorsOrigins}
+              - {Name: COGNITO_USER_POOL_ID, Value: !Ref CognitoUserPoolId}
+              - {Name: COGNITO_CLIENT_ID, Value: !Ref CognitoClientId}
+              - {Name: COGNITO_DOMAIN, Value: !Ref CognitoDomain}
+              - {Name: PUBLIC_BASE_URL, Value: !Ref PublicBaseUrl}
       InstanceConfiguration:
         Cpu: "0.5 vCPU"
         Memory: "1 GB"
