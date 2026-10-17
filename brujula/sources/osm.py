@@ -26,6 +26,8 @@ ETIQUETAS_SECTOR = {
 class ConectorOSM(Conector):
     clave = "osm"
     nombre = "OpenStreetMap (Overpass)"
+    descripcion = "Negocios con teléfono o sitio web en el mapa colaborativo OpenStreetMap; útil para sectores que no están en un registro público."
+    ayuda_sector = "Tipo de negocio en inglés (clinic, dentist, hotel, gym…)"
     pais = "CO"
     tipo = "mapa"
     licencia = "ODbL, OpenStreetMap contributors"

@@ -67,6 +67,7 @@ class BusquedaEntrada(BaseModel):
     ciudad: str = "BOGOTA"
     sector: str = ""
     limite: int = 100
+    parametros: dict[str, dict] | None = None     # ciudad/sector propios de una fuente: {"denue": {"ciudad": "09"}, "cnpj": {"sector": "…"}}
 
 
 class EmpresaEntrada(BaseModel):
@@ -420,7 +421,7 @@ def api_buscar(request: Request, entrada: BusquedaEntrada):
     """Encontrar: corre las fuentes elegidas, deduplica y puntúa el ICP de la empresa."""
     emp_id = empresa_de(request)
     fuentes = [f for f in entrada.fuentes if f in CONECTORES and f != "csv"]
-    r = buscar_fuentes(emp_id, fuentes, ciudad=entrada.ciudad, sector=entrada.sector, limite=max(1, min(entrada.limite, 500)))
+    r = buscar_fuentes(emp_id, fuentes, ciudad=entrada.ciudad, sector=entrada.sector, limite=max(1, min(entrada.limite, 500)), parametros=entrada.parametros)
     notificaciones.notificar(emp_id, "busqueda", f"Búsqueda en {', '.join(fuentes)} ({entrada.ciudad or 'todas las ciudades'}): {r['nuevos']} empresas nuevas")
     return r
 
@@ -461,15 +462,17 @@ def api_lead_revision(request: Request, lead_id: int, entrada: RevisionEntrada):
 
 
 @app.get("/api/lead/{lead_id}/mensaje")
-def api_lead_mensaje(request: Request, lead_id: int, canal: str = "correo"):
-    """Vista previa del primer mensaje que redactaría el agente para este lead."""
+def api_lead_mensaje(request: Request, lead_id: int, canal: str = "correo", idioma: str = ""):
+    """Vista previa del primer mensaje que redactaría el agente para este lead, en el idioma de su fuente o en el que se pida (es, pt, en)."""
+    from ..mensajes import IDIOMAS, idioma_de
     emp_id = empresa_de(request)
     with sesion() as s:
         l = s.get(Lead, lead_id)
         if not l or l.empresa_id != emp_id:
             return JSONResponse({"error": "no existe"}, status_code=404)
-    texto, info = agente.redactar_mensaje(l, canal, empresas.icp_de(emp_id))
-    return {"lead_id": lead_id, "canal": canal, "texto": texto, **info}
+    idioma = idioma if idioma in IDIOMAS else idioma_de(l, emp_id)
+    texto, info = agente.redactar_mensaje(l, canal, empresas.icp_de(emp_id), idioma=idioma)
+    return {"lead_id": lead_id, "canal": canal, "idioma": idioma, "texto": texto, **info}
 
 
 @app.post("/api/respuesta")

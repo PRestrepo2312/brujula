@@ -9,7 +9,7 @@ import secrets
 import httpx
 
 from ..config import config
-from ..mensajes import asunto_correo, cuerpo_correo, html_correo
+from ..mensajes import asunto_correo, cuerpo_correo, html_correo, idioma_de
 from ..models import Intento, Lead
 from .base import Canal, Resultado
 
@@ -26,12 +26,13 @@ class CanalCorreo(Canal):
         token = intento.detalle.get("token") or secrets.token_urlsafe(12)
         base = config.public_base_url.rstrip("/")
         urls = {v: f"{base}/r/{token}?v={v}" for v in ("si", "no", "baja")}
-        texto, _ = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"])
+        idioma = idioma_de(lead, intento.empresa_id)
+        texto, _ = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"], idioma=idioma)
         redactado = (intento.detalle or {}).get("texto")
         if redactado and "{url_si}" in redactado:
             texto = redactado.replace("{url_si}", urls["si"]).replace("{url_no}", urls["no"]).replace("{url_baja}", urls["baja"])
-        asunto = asunto_correo(lead)
-        detalle = {"token": token, "asunto": asunto}
+        asunto = asunto_correo(lead, idioma)
+        detalle = {"token": token, "asunto": asunto, "idioma": idioma}
         destino, nota = lead.correo, ""
         if config.modo_prueba:
             # Desvío: el correo lleva el pitch de la empresa real, pero va a un correo verificado del equipo. Nunca al correo del lead.
@@ -41,7 +42,7 @@ class CanalCorreo(Canal):
             detalle["desvio"] = {"original": lead.correo, "destino": destino}
             nota = f"Prueba: este correo iba para {lead.correo}"
         # El HTML con la marca (botones en vez de enlaces sueltos) se arma siempre a partir del texto, sea plantilla o redacción del agente.
-        html = html_correo(texto, urls["si"], urls["no"], urls["baja"], nota=nota)
+        html = html_correo(texto, urls["si"], urls["no"], urls["baja"], nota=nota, idioma=idioma)
         if nota:
             texto = f"[{nota}]\n\n{texto}"
         if not self.real:

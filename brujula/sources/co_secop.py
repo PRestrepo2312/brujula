@@ -13,6 +13,8 @@ CONTRATOS = "jbjy-vk9h"
 class ConectorSECOP(Conector):
     clave = "secop"
     nombre = "SECOP II, proveedores registrados"
+    descripcion = "Empresas inscritas como proveedores del Estado en SECOP II (datos.gov.co), con celular y correo; trae la señal de contratos recientes."
+    ayuda_sector = "Palabra de la actividad (aseo, software, vigilancia…), opcional"
     pais = "CO"
     tipo = "registro"
     licencia = "CC BY-SA 4.0, datos.gov.co, Colombia Compra Eficiente"

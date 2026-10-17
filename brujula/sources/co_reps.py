@@ -12,6 +12,8 @@ DATASET = "c36g-9fc2"
 class ConectorREPS(Conector):
     clave = "reps"
     nombre = "REPS, prestadores de salud (IPS privadas)"
+    descripcion = "IPS privadas del Registro Especial de Prestadores de Salud (datos.gov.co): clínicas, consultorios y laboratorios con teléfono y correo."
+    usa_sector = False
     pais = "CO"
     tipo = "registro"
     licencia = "CC BY-SA 4.0, datos.gov.co, MinSalud"

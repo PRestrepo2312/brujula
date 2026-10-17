@@ -12,6 +12,8 @@ DATASET = "thwd-ivmp"
 class ConectorRNT(Conector):
     clave = "rnt"
     nombre = "Registro Nacional de Turismo"
+    descripcion = "Hoteles, agencias de viajes y otros prestadores turísticos inscritos en el RNT (datos.gov.co), con teléfono y correo."
+    ayuda_sector = "Tipo de prestador (hotel, agencia…), opcional"
     pais = "CO"
     tipo = "registro"
     licencia = "CC BY-SA 4.0, datos.gov.co, MinCIT"

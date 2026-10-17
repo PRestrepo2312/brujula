@@ -12,6 +12,8 @@ DATASET = "cfw5-qzt5"
 class ConectorMEN(Conector):
     clave = "men"
     nombre = "MEN, colegios privados"
+    descripcion = "Colegios privados del Ministerio de Educación (datos.gov.co), con teléfono y correo del colegio."
+    usa_sector = False
     pais = "CO"
     tipo = "registro"
     licencia = "CC BY-SA 4.0, datos.gov.co, MinEducación"

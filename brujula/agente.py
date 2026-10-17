@@ -208,24 +208,30 @@ def interpretar_icp(texto: str) -> tuple[ICP, dict]:
 
 # ---------------- Mensajes ----------------
 
-def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None) -> tuple[str, dict]:
-    """Texto del primer mensaje. Bedrock lo personaliza con la señal; sin Bedrock, plantilla."""
-    from .mensajes import cuerpo_correo, senal_en_palabras, whatsapp_texto
+IDIOMA_REDACCION = {"es": "en español de Colombia", "pt": "em português do Brasil", "en": "in US English"}
+
+
+def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None, idioma: str = "es") -> tuple[str, dict]:
+    """Texto del primer mensaje en el idioma pedido (es, pt, en). El agente lo personaliza con la señal; sin agente, plantilla en ese idioma."""
+    from .mensajes import TEXTOS, cuerpo_correo, nombre_bonito, senal_en_palabras, whatsapp_texto
+    idioma = idioma if idioma in TEXTOS else "es"
     b = bedrock()
     if canal == "whatsapp" or not b.disponible:
         if canal == "correo":
-            return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}")[0], {"motor": "plantilla", "costo_usd": 0.0}
-        return whatsapp_texto(lead), {"motor": "plantilla", "costo_usd": 0.0}
-    sistema = ("Redactas el primer mensaje de contacto comercial de Brújula a una empresa colombiana, en español de Colombia, honesto y corto (máximo 90 palabras). "
-               "Reglas: empieza con 'Hola, equipo de {empresa}'; menciona la señal; explica en una frase qué hacemos (ayudamos a negocios a atender y calificar a los clientes que llaman o escriben, sin perder ninguno); "
-               "pide una llamada de 5 minutos; al final, en tres líneas aparte, pon literalmente 'Sí, me interesa: {url_si}', 'No, gracias: {url_no}' y "
-               "'Para no recibir más mensajes: {url_baja}' (esas marcas se convierten en botones). Nada de promesas ni precios.")
-    usuario = json.dumps({"empresa": lead.razon_social.title(), "ciudad": lead.ciudad.title(), "sector": lead.sector, "senal": senal_en_palabras(lead),
-                          "perfil": (icp.descripcion if icp else "")}, ensure_ascii=False)
+            return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
+        return whatsapp_texto(lead, idioma), {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
+    t = TEXTOS[idioma]
+    sistema = (f"Redactas el primer mensaje de contacto comercial de Brújula a una empresa, escrito {IDIOMA_REDACCION[idioma]}, honesto y corto (máximo 90 palabras). "
+               "Reglas: saluda al equipo de {empresa}; menciona la señal; explica en una frase qué hacemos (ayudamos a negocios a atender y calificar a los clientes que llaman o escriben, sin perder ninguno); "
+               f"pide una llamada de 5 minutos; al final, en tres líneas aparte, pon literalmente '{t['si']}: {{url_si}}', '{t['no']}: {{url_no}}' y "
+               "'{url_baja}' precedido de una frase corta para darse de baja (esas marcas se convierten en botones). Nada de promesas ni precios. "
+               "Responde solo con el mensaje, en el idioma indicado.")
+    usuario = json.dumps({"empresa": nombre_bonito(lead.razon_social), "ciudad": lead.ciudad.title(), "sector": lead.sector, "senal": senal_en_palabras(lead, idioma),
+                          "perfil": (icp.descripcion if icp else ""), "idioma": idioma}, ensure_ascii=False)
     texto, uso = b.preguntar(sistema, usuario, max_tokens=350)
     if not texto or "{url_si}" not in texto or "{url_baja}" not in texto:
-        return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}")[0], {"motor": "plantilla", "costo_usd": 0.0}
-    return texto.strip(), {"motor": b.motor, "costo_usd": uso.costo_usd}
+        return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
+    return texto.strip(), {"motor": b.motor, "costo_usd": uso.costo_usd, "idioma": idioma}
 
 
 # ---------------- Explicaciones ----------------

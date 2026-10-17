@@ -39,6 +39,9 @@ def _mapear(cabeceras: list[str]) -> dict[str, str]:
 class ConectorCSV(Conector):
     clave = "csv"
     nombre = "Lista propia (CSV)"
+    descripcion = "Su propia lista de empresas en CSV (nombre, nit, teléfono, correo, ciudad, sector, web): misma normalización y deduplicación."
+    usa_ciudad = False
+    usa_sector = False
     pais = "CO"
     tipo = "archivo"
     licencia = "Datos del cliente"

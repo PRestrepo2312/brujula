@@ -25,7 +25,7 @@ export class ApiService {
   yo(): Observable<any> { return this.http.get(`${this.base}/api/yo`); }
   metricas(): Observable<Metricas> { return this.http.get<Metricas>(`${this.base}/api/metricas`); }
   fuentes(): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/fuentes`); }
-  buscar(cuerpo: { fuentes: string[]; ciudad: string; sector: string; limite: number }): Observable<any> { return this.http.post(`${this.base}/api/buscar`, cuerpo); }
+  buscar(cuerpo: { fuentes: string[]; ciudad: string; sector: string; limite: number; parametros?: Record<string, { ciudad?: string; sector?: string }> }): Observable<any> { return this.http.post(`${this.base}/api/buscar`, cuerpo); }
   leads(filtros: { estado?: string; fuente?: string; q?: string; limite?: number; pagina?: number } = {}): Observable<Lead[]> {
     let p = new HttpParams();
     Object.entries(filtros).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== null) p = p.set(k, String(v)); });
@@ -33,7 +33,7 @@ export class ApiService {
   }
   lead(id: number): Observable<any> { return this.http.get(`${this.base}/api/lead/${id}`); }
   revisar(id: number, decision: 'aprobar' | 'descartar'): Observable<any> { return this.http.post(`${this.base}/api/lead/${id}/revision`, { decision }); }
-  mensaje(id: number, canal = 'correo'): Observable<any> { return this.http.get(`${this.base}/api/lead/${id}/mensaje`, { params: { canal } }); }
+  mensaje(id: number, canal = 'correo', idioma = ''): Observable<any> { return this.http.get(`${this.base}/api/lead/${id}/mensaje`, { params: { canal, idioma } }); }
   respuesta(lead_id: number, texto: string, canal = 'whatsapp'): Observable<any> { return this.http.post(`${this.base}/api/respuesta`, { lead_id, texto, canal }); }
   lote(cuerpo: { n?: number | null; modo: string; motivo_override?: string; usuario?: string }): Observable<any> { return this.http.post(`${this.base}/api/lote`, cuerpo); }
   lotes(): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/lotes`); }

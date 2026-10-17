@@ -21,8 +21,12 @@ import { ApiService } from '../core/api.service';
           @if (d.lead.icp_estado === 'revisar') {<div class="acciones"><button class="boton" (click)="revisar('aprobar')">Aprobar</button><button class="boton gris" (click)="revisar('descartar')">Descartar</button></div>}
         </div>
         <div class="tarjeta"><h2>Mensaje que redactaría el agente</h2>
-          <button class="boton sec" (click)="verMensaje()" [disabled]="ocupado()">Vista previa (correo)</button>
-          @if (mensaje(); as m) {<p style="white-space:pre-wrap;font-size:13px;margin-top:10px">{{ m.texto }}</p><p class="sec">motor: {{ m.motor }} · USD {{ m.costo_usd | number:'1.4-4' }}</p>}
+          <div class="acciones">
+            <select [(ngModel)]="idioma" style="width:170px"><option value="">Idioma de la fuente</option><option value="es">Español</option><option value="pt">Português</option><option value="en">English</option></select>
+            <button class="boton sec" (click)="verMensaje()" [disabled]="ocupado()">Vista previa (correo)</button>
+          </div>
+          <p class="sec" style="margin-top:6px">Con agente de texto activo, redacta directo en ese idioma; sin agente, usa la plantilla en ese idioma.</p>
+          @if (mensaje(); as m) {<p style="white-space:pre-wrap;font-size:13px;margin-top:10px">{{ m.texto }}</p><p class="sec">idioma: {{ m.idioma }} · motor: {{ m.motor }} · USD {{ m.costo_usd | number:'1.4-4' }}</p>}
         </div>
       </div>
       <div class="fila c2">
@@ -51,12 +55,12 @@ export class LeadDetallePage {
   mensaje = signal<any>(null);
   msg = signal('');
   ocupado = signal(false);
-  texto = ''; canal = 'whatsapp';
+  texto = ''; canal = 'whatsapp'; idioma = '';
 
   constructor() { effect(() => { const id = Number(this.id()); if (id) this.cargar(id); }); }
   cargar(id: number): void { this.api.lead(id).subscribe((d) => this.d.set(d)); }
   revisar(dec: 'aprobar' | 'descartar'): void { this.api.revisar(Number(this.id()), dec).subscribe(() => this.cargar(Number(this.id()))); }
-  verMensaje(): void { this.ocupado.set(true); this.api.mensaje(Number(this.id())).subscribe({ next: (m) => { this.mensaje.set(m); this.ocupado.set(false); }, error: () => this.ocupado.set(false) }); }
+  verMensaje(): void { this.ocupado.set(true); this.api.mensaje(Number(this.id()), 'correo', this.idioma).subscribe({ next: (m) => { this.mensaje.set(m); this.ocupado.set(false); }, error: () => this.ocupado.set(false) }); }
   responder(): void {
     this.ocupado.set(true);
     this.api.respuesta(Number(this.id()), this.texto, this.canal).subscribe({ next: (r) => { this.msg.set(`Clasificada como ${r.clasificacion} (${r.motor}).`); this.texto = ''; this.cargar(Number(this.id())); this.ocupado.set(false); }, error: (e) => { this.msg.set(e.message); this.ocupado.set(false); } });

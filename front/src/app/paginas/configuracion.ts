@@ -25,6 +25,16 @@ import { AuthService } from '../core/auth.service';
           <div><label>Avisar por</label><div class="acciones">
             @for (c of ['app','correo']; track c) {<span class="chip" [class.on]="form.config.notificar_por.includes(c)" (click)="alternarAviso(c)">{{ c }}</span>}
           </div></div>
+          <div style="margin-top:12px"><label>Idioma de los mensajes por fuente (sin elegir: el del país de la fuente)</label>
+            <div class="acciones">
+              @for (f of fuentes(); track f.clave) {
+                <span class="chip" style="cursor:default">{{ f.clave.toUpperCase() }}
+                  <select [(ngModel)]="form.config.idiomas[f.clave]" style="width:auto;padding:2px 4px;border:0;background:transparent">
+                    <option value="">{{ nombreIdioma(f.idioma) }} (país)</option><option value="es">Español</option><option value="pt">Português</option><option value="en">English</option>
+                  </select></span>
+              }
+            </div>
+          </div>
           <div style="margin-top:12px"><label>Horario de la Ley 2300 (lunes a viernes 7 a. m. a 7 p. m., sábados 8 a. m. a 3 p. m., nunca domingos ni festivos)</label>
             <div class="acciones">
               <span class="chip" [class.on]="form.config.respetar_ley_2300 !== false" (click)="form.config.respetar_ley_2300 = true">Respetar el horario</span>
@@ -86,12 +96,15 @@ export class ConfiguracionPage {
   nueva = { nombre: '', correo_notificaciones: '', icp_texto: '' };
   usuario = { email: '', empresa_id: 1, rol: 'usuario' };
   estado = signal<any>(null);
+  fuentes = signal<any[]>([]);
   msg = signal(''); msgAdmin = signal(''); ocupado = signal(false);
 
   constructor() { this.cargar(); }
+  nombreIdioma(c: string): string { return ({ es: 'Español', pt: 'Português', en: 'English' } as Record<string, string>)[c] || c; }
   cargar(): void {
     this.api.estado().subscribe((s) => this.estado.set(s));
-    this.api.empresa().subscribe((e) => { this.e.set(e); this.form = { nombre: e.nombre, correo_notificaciones: e.correo_notificaciones, dapta_api_key: '', dapta_agent_id: e.dapta_agent_id, dapta_sequence_id: e.dapta_sequence_id, config: { ...e.config } }; this.usuario.empresa_id = e.id; });
+    this.api.fuentes().subscribe((f) => this.fuentes.set(f.filter((x) => x.clave !== 'csv')));
+    this.api.empresa().subscribe((e) => { this.e.set(e); this.form = { nombre: e.nombre, correo_notificaciones: e.correo_notificaciones, dapta_api_key: '', dapta_agent_id: e.dapta_agent_id, dapta_sequence_id: e.dapta_sequence_id, config: { idiomas: {}, ...e.config } }; this.usuario.empresa_id = e.id; });
     if (this.auth.rol === 'superadmin') this.api.empresas().subscribe({ next: (l) => this.empresas.set(l), error: () => {} });
   }
   alternar(c: string): void { const l = this.form.config.canales as string[]; this.form.config.canales = l.includes(c) ? l.filter((x) => x !== c) : [...l, c]; }

@@ -16,6 +16,7 @@ CONFIG_DEFECTO = {
     "notificar_por": ["app", "correo"],
     "remitente": "",
     "respetar_ley_2300": True,     # False = la empresa asume la responsabilidad de contactar fuera del horario legal (queda en la bitácora)
+    "idiomas": {},                 # idioma de los mensajes por fuente, p. ej. {"nyc": "en"}; sin valor, el del país de la fuente
 }
 
 

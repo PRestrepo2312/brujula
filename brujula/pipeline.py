@@ -124,7 +124,8 @@ def ejecutar_lote(lote_id: int) -> dict:
                 canales[it.canal] = canal_de(it.canal, empresa_id=empresa_id)
             c = canales[it.canal]
             if it.canal == "correo" and not it.detalle.get("texto"):
-                texto, info = agente.redactar_mensaje(l, "correo", icp)
+                from .mensajes import idioma_de
+                texto, info = agente.redactar_mensaje(l, "correo", icp, idioma=idioma_de(l, empresa_id))
                 it.detalle = {**(it.detalle or {}), "texto": texto, "redaccion": info}
             r = c.enviar(l, it)
             it.estado = r.estado

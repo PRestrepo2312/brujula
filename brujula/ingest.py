@@ -76,14 +76,18 @@ def ingerir_csv(datos: bytes, nombre_archivo: str = "lista.csv", pais: str = "CO
     return r
 
 
-def buscar(empresa_id: int, fuentes: list[str], ciudad: str = "", sector: str = "", limite: int = 200, puntuar_icp: bool = True) -> dict:
-    """Lo que hace el botón Buscar del front: corre varias fuentes, deduplica y puntúa el ICP de la empresa."""
+def buscar(empresa_id: int, fuentes: list[str], ciudad: str = "", sector: str = "", limite: int = 200, puntuar_icp: bool = True,
+           parametros: dict[str, dict] | None = None) -> dict:
+    """Lo que hace el botón Buscar del front: corre varias fuentes, deduplica y puntúa el ICP de la empresa.
+
+    parametros permite ciudad/sector distintos por fuente (p. ej. la entidad federativa para DENUE o los CNPJ para Brasil)."""
     from .empresas import icp_de
     from .icp import puntuar
     resultados = []
     for clave in fuentes:
+        propios = (parametros or {}).get(clave) or {}
         try:
-            resultados.append(ingerir(clave, ciudad=ciudad, sector=sector, limite=limite, empresa_id=empresa_id))
+            resultados.append(ingerir(clave, ciudad=propios.get("ciudad", ciudad), sector=propios.get("sector", sector), limite=limite, empresa_id=empresa_id))
         except SystemExit as e:
             resultados.append({"fuente": clave, "error": str(e)})
         except Exception as e:  # noqa: BLE001

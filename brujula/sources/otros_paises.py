@@ -15,6 +15,9 @@ class ConectorDENUE(Conector):
 
     clave = "denue"
     nombre = "DENUE (INEGI), México"
+    descripcion = "Establecimientos de México del DENUE (INEGI), con teléfono y correo. Solo encontrar: desde Brújula no se contacta fuera de Colombia."
+    ayuda_ciudad = "Entidad federativa de México"
+    ayuda_sector = "Giro o palabra del negocio (clínica dental, hotel…)"
     pais = "MX"
     tipo = "registro"
     licencia = "Términos de libre uso del INEGI"
@@ -62,6 +65,10 @@ class ConectorCNPJ(Conector):
 
     clave = "cnpj"
     nombre = "CNPJ (Receita Federal) vía BrasilAPI, Brasil"
+    descripcion = "Empresas de Brasil por su CNPJ (datos abiertos de la Receita Federal vía BrasilAPI). Solo encontrar. Los CNPJ salen de una consulta por CNAE en Base dos Dados."
+    usa_ciudad = False
+    ayuda_sector = "CNPJ separados por coma"
+    idioma = "pt"
     pais = "BR"
     tipo = "registro"
     licencia = "Datos abiertos de la Receita Federal"
@@ -72,7 +79,7 @@ class ConectorCNPJ(Conector):
         # "sector" trae CNPJs separados por coma (de una consulta previa en Base dos Dados / BigQuery).
         cnpjs = [c.strip() for c in sector.split(",") if c.strip()][:limite]
         if not cnpjs:
-            raise SystemExit("CNPJ: pase los CNPJ separados por coma en --sector (de una consulta por CNAE en Base dos Dados).")
+            raise SystemExit("CNPJ: pegue los CNPJ separados por coma en el campo de la fuente (salen de una consulta por CNAE en Base dos Dados).")
         with httpx.Client(timeout=60, headers={"User-Agent": "Brujula/0.1"}) as http:
             for c in cnpjs:
                 r = http.get(self.url + "".join(ch for ch in c if ch.isdigit()))
@@ -95,6 +102,10 @@ class ConectorNYC(Conector):
 
     clave = "nyc"
     nombre = "Licencias de negocios, Nueva York"
+    descripcion = "Negocios con licencia en la ciudad de Nueva York (NYC Open Data), con teléfono. Solo encontrar."
+    ayuda_ciudad = "Borough (Manhattan, Brooklyn, Queens…), opcional"
+    ayuda_sector = "Categoría del negocio en inglés (restaurant, laundry…), opcional"
+    idioma = "en"
     pais = "US"
     tipo = "registro"
     licencia = "NYC Open Data"

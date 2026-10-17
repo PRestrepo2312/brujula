@@ -98,10 +98,18 @@ class Conector:
     url = ""
     contacta = True             # False: solo encontrar (otros países)
     costo_fijo_usd = 0.0        # p. ej. un token o una cuota mensual prorrateada
+    # Para la pantalla de búsqueda: qué es la fuente y qué significan "ciudad" y "sector" en ella.
+    descripcion = ""
+    usa_ciudad = True
+    usa_sector = True
+    ayuda_ciudad = "Ciudad de Colombia"
+    ayuda_sector = "Palabra del sector (opcional)"
+    idioma = "es"               # idioma por defecto de los mensajes a los leads de esta fuente
 
     def buscar(self, *, ciudad: str = "", sector: str = "", limite: int = 500) -> Iterator[Registro]:
         raise NotImplementedError
 
     def describir(self) -> dict:
         return {"clave": self.clave, "nombre": self.nombre, "pais": self.pais, "tipo": self.tipo, "licencia": self.licencia,
-                "url": self.url, "contacta": self.contacta}
+                "url": self.url, "contacta": self.contacta, "descripcion": self.descripcion, "usa_ciudad": self.usa_ciudad,
+                "usa_sector": self.usa_sector, "ayuda_ciudad": self.ayuda_ciudad, "ayuda_sector": self.ayuda_sector, "idioma": self.idioma}

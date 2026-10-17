@@ -29,6 +29,25 @@ Resources:
       AutoVerifiedAttributes: [email]
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: "Bienvenido a Brújula"
+          EmailMessage: !Sub >-
+            <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #E6E1D8;border-radius:12px">
+            <div style="background:#2E2A5A;color:#fff;padding:14px 24px;font-size:12px;letter-spacing:.18em;font-weight:bold;border-radius:12px 12px 0 0"><span style="color:#E3661B">&#9679;</span>&nbsp; BR&Uacute;JULA</div>
+            <div style="padding:22px 24px;color:#3B3A52;font-size:15px;line-height:1.55"><p>Hola,</p>
+            <p>Le crearon una cuenta en Br&uacute;jula. Su usuario es <b>{username}</b> y su clave temporal es <b>{####}</b>.</p>
+            <p>Entre en <a href="${FrontBaseUrl}/login" style="color:#E3661B">${FrontBaseUrl}/login</a>; en el primer ingreso le pedir&aacute; una clave nueva.</p>
+            <p style="color:#7A7891;font-size:12px">Equipo Br&uacute;jula</p></div></div>
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "Brújula: su código de verificación"
+        EmailMessage: >-
+          <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #E6E1D8;border-radius:12px">
+          <div style="background:#2E2A5A;color:#fff;padding:14px 24px;font-size:12px;letter-spacing:.18em;font-weight:bold;border-radius:12px 12px 0 0"><span style="color:#E3661B">&#9679;</span>&nbsp; BR&Uacute;JULA</div>
+          <div style="padding:22px 24px;color:#3B3A52;font-size:15px;line-height:1.55"><p>Hola,</p>
+          <p>Su c&oacute;digo de Br&uacute;jula es <b style="font-size:20px;letter-spacing:.12em">{####}</b>. Vence en una hora.</p>
+          <p>Si usted no lo pidi&oacute;, ignore este correo.</p>
+          <p style="color:#7A7891;font-size:12px">Equipo Br&uacute;jula</p></div></div>
       Policies:
         PasswordPolicy: {MinimumLength: 12, RequireLowercase: true, RequireNumbers: true, RequireUppercase: true, RequireSymbols: false}
       Schema:
