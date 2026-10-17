@@ -44,6 +44,11 @@ Parameters:
   CorsOrigins:
     Type: String
     Default: "*"
+  DenueToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Token gratuito del DENUE (INEGI, México) para el conector denue.
   ModoPrueba:
     Type: String
     Default: "1"
@@ -115,7 +120,7 @@ Resources:
       Name: brujula/env
       SecretString: !Sub |
         {"DAPTA_API_KEY":"${DaptaApiKey}","DAPTA_AGENT_ID":"${DaptaAgentId}","DAPTA_SEQUENCE_ID":"${DaptaSequenceId}",
-         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}",
+         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}","DENUE_TOKEN":"${DenueToken}",
          "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
 
   # --- Archivos: bucket privado con URL prefirmadas ---

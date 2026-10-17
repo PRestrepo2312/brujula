@@ -15,6 +15,7 @@ CONFIG_DEFECTO = {
     "presupuesto_lote": 20,
     "notificar_por": ["app", "correo"],
     "remitente": "",
+    "respetar_ley_2300": True,     # False = la empresa asume la responsabilidad de contactar fuera del horario legal (queda en la bitácora)
 }
 
 

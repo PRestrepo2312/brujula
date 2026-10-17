@@ -25,6 +25,13 @@ import { AuthService } from '../core/auth.service';
           <div><label>Avisar por</label><div class="acciones">
             @for (c of ['app','correo']; track c) {<span class="chip" [class.on]="form.config.notificar_por.includes(c)" (click)="alternarAviso(c)">{{ c }}</span>}
           </div></div>
+          <div style="margin-top:12px"><label>Horario de la Ley 2300 (lunes a viernes 7 a. m. a 7 p. m., sábados 8 a. m. a 3 p. m., nunca domingos ni festivos)</label>
+            <div class="acciones">
+              <span class="chip" [class.on]="form.config.respetar_ley_2300 !== false" (click)="form.config.respetar_ley_2300 = true">Respetar el horario</span>
+              <span class="chip" [class.on]="form.config.respetar_ley_2300 === false" (click)="form.config.respetar_ley_2300 = false">Desactivar bajo mi responsabilidad</span>
+            </div>
+            @if (form.config.respetar_ley_2300 === false) {<div class="aviso">Con el horario desactivado los lotes salen a cualquier hora sin pedir motivo y la secuencia de Dapta llama todos los días a toda hora. El cambio queda en la bitácora con su usuario.</div>}
+          </div>
           <h2 style="margin-top:16px">Dapta de la empresa</h2>
           <p class="sec">Clave MCP: {{ e.dapta_api_key || 'usa la del servidor (demo)' }}</p>
           <div class="fila c3" style="margin:0 0 10px">

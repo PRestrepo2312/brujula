@@ -68,14 +68,91 @@ class Bedrock:
             return None, Uso()
 
 
-_bedrock: Bedrock | None = None
+class OpenRouterLLM:
+    """Plan B mientras la cuenta de AWS no tenga Bedrock: el mismo Amazon Nova (u otro) por OpenRouter, con la clave de Jev."""
+
+    def __init__(self):
+        self.modelo = config.llm_openrouter_model
+        self.disponible = bool(config.openrouter_api_key and self.modelo)
+        self.error = ""
+
+    def preguntar(self, sistema: str, usuario: str, max_tokens: int = 600) -> tuple[str | None, Uso]:
+        if not self.disponible:
+            return None, Uso()
+        try:
+            r = httpx.post("https://openrouter.ai/api/v1/chat/completions", timeout=60,
+                           headers={"Authorization": f"Bearer {config.openrouter_api_key}", "HTTP-Referer": config.public_base_url, "X-Title": "Brujula"},
+                           json={"model": self.modelo, "temperature": 0.2, "max_tokens": max_tokens,
+                                 "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]})
+            if r.status_code >= 300:
+                self.error = f"OpenRouter {r.status_code}: {r.text[:160]}"
+                if r.status_code in (401, 402, 403, 404):      # clave, créditos o modelo: no insistir
+                    self.disponible = False
+                return None, Uso()
+            d = r.json()
+            texto = d["choices"][0]["message"]["content"]
+            u = d.get("usage") or {}
+            return texto, Uso(int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0)))
+        except Exception as e:  # noqa: BLE001
+            self.error = str(e)[:200]
+            return None, Uso()
 
 
-def bedrock() -> Bedrock:
-    global _bedrock
-    if _bedrock is None:
-        _bedrock = Bedrock()
-    return _bedrock
+class LLM:
+    """Bedrock si la cuenta lo permite; si no, OpenRouter; si no hay ninguno, mandan las reglas y las plantillas."""
+
+    def __init__(self):
+        self.bedrock = Bedrock()
+        self.openrouter = OpenRouterLLM()
+        self._probado = False
+
+    def _probar(self) -> None:
+        """Una sola prueba corta a Bedrock: una cuenta nueva responde 'Operation not allowed' hasta que AWS la verifica."""
+        if not self._probado and self.bedrock.disponible:
+            self._probado = True
+            self.bedrock.preguntar("Responde solo OK.", "OK", max_tokens=5)
+
+    @property
+    def disponible(self) -> bool:
+        self._probar()
+        return self.bedrock.disponible or self.openrouter.disponible
+
+    @property
+    def motor(self) -> str:
+        self._probar()
+        if self.bedrock.disponible:
+            return f"bedrock:{self.bedrock.modelo}"
+        if self.openrouter.disponible:
+            return f"openrouter:{self.openrouter.modelo}"
+        return "reglas"
+
+    @property
+    def error(self) -> str:
+        return getattr(self.bedrock, "error", "") or self.openrouter.error
+
+    def preguntar(self, sistema: str, usuario: str, max_tokens: int = 600) -> tuple[str | None, Uso]:
+        if self.bedrock.disponible:
+            texto, uso = self.bedrock.preguntar(sistema, usuario, max_tokens)
+            if texto is not None:
+                return texto, uso
+        if self.openrouter.disponible:
+            return self.openrouter.preguntar(sistema, usuario, max_tokens)
+        return None, Uso()
+
+
+_llm: LLM | None = None
+
+
+def llm() -> LLM:
+    global _llm
+    if _llm is None:
+        _llm = LLM()
+    return _llm
+
+
+def bedrock() -> LLM:
+    """Nombre histórico: el agente de texto, sea Bedrock, OpenRouter o reglas."""
+    return llm()
 
 
 def _json_de(texto: str) -> dict | None:
@@ -110,7 +187,7 @@ def interpretar_icp_reglas(texto: str) -> ICP:
 
 
 def interpretar_icp(texto: str) -> tuple[ICP, dict]:
-    """Devuelve el ICP y cómo se obtuvo ({"motor": "bedrock"|"reglas", "costo_usd": ...})."""
+    """Devuelve el ICP y cómo se obtuvo ({"motor": "bedrock:…"|"openrouter:…"|"reglas", "costo_usd": ...})."""
     base = interpretar_icp_reglas(texto)
     b = bedrock()
     sistema = ("Conviertes la descripción del cliente ideal de una pyme en criterios estructurados para buscar empresas en registros públicos de Colombia. "
@@ -126,7 +203,7 @@ def interpretar_icp(texto: str) -> tuple[ICP, dict]:
     icp = ICP(**{**base.__dict__, **campos})
     icp.descripcion = icp.descripcion or texto.strip()
     icp.excluir_palabras = sorted(set((icp.excluir_palabras or []) + ICP().excluir_palabras))
-    return icp, {"motor": "bedrock", "costo_usd": uso.costo_usd, "tokens": uso.tokens_entrada + uso.tokens_salida}
+    return icp, {"motor": b.motor, "costo_usd": uso.costo_usd, "tokens": uso.tokens_entrada + uso.tokens_salida}
 
 
 # ---------------- Mensajes ----------------
@@ -148,7 +225,7 @@ def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None) -> tuple[st
     texto, uso = b.preguntar(sistema, usuario, max_tokens=350)
     if not texto or "{url_si}" not in texto or "{url_baja}" not in texto:
         return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}")[0], {"motor": "plantilla", "costo_usd": 0.0}
-    return texto.strip(), {"motor": "bedrock", "costo_usd": uso.costo_usd}
+    return texto.strip(), {"motor": b.motor, "costo_usd": uso.costo_usd}
 
 
 # ---------------- Explicaciones ----------------

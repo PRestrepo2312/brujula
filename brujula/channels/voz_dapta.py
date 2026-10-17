@@ -12,6 +12,8 @@ from ..config import RAIZ, config
 from ..dapta_mcp import REGLAS_LEY_2300, DaptaError, DaptaMCP
 
 DIAS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+# Horario sin restricción legal: lo elige la empresa en su configuración (respetar_ley_2300 = False) bajo su responsabilidad.
+REGLAS_SIN_LIMITE = {**REGLAS_LEY_2300, "schedule": {d: {"enabled": True, "timeSlots": [{"startTime": "12:00 AM", "endTime": "11:59 PM"}]} for d in DIAS}}
 
 
 def duracion_seg(llamada: dict) -> int:
@@ -112,6 +114,10 @@ class CanalVozDapta(Canal):
 
     def restaurar_ventana_legal(self) -> dict:
         return self.mcp.reglas_secuencia(self.ids["sequence_id"], REGLAS_LEY_2300)
+
+    def aplicar_horario(self, respetar_ley_2300: bool) -> dict:
+        """Horario de la secuencia según la configuración de la empresa: legal (Ley 2300) o sin límite."""
+        return self.mcp.reglas_secuencia(self.ids["sequence_id"], REGLAS_LEY_2300 if respetar_ley_2300 else REGLAS_SIN_LIMITE)
 
     # --- conciliación con los registros de llamada ---
     def costo_llamada(self, llamada: dict) -> float:

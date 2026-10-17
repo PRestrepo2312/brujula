@@ -383,10 +383,12 @@ def api_estado(request: Request):
     with sesion() as s:
         n = s.exec(select(func.count(Lead.id)).where(Lead.empresa_id == emp_id)).one()
     ok, razon = ventana_permitida()
-    b = agente.bedrock()
+    b = agente.llm()
     from ..channels.voz_dapta import CanalVozDapta
     return {"leads": n, "ventana_ok": ok, "razon": razon, "ahora": ahora_local().isoformat(), "proxima_ventana": proxima_ventana().isoformat(),
-            "agente": {"bedrock": b.disponible, "jev": config.jev_disponible, "dapta_voz_real": CanalVozDapta(emp_id).real, "correo_real": config.correo_real},
+            "respetar_ley_2300": bool(empresas.config_de(emp_id).get("respetar_ley_2300", True)),
+            "agente": {"bedrock": b.bedrock.disponible, "llm": b.motor, "llm_error": b.error, "jev": config.jev_disponible,
+                       "dapta_voz_real": CanalVozDapta(emp_id).real, "correo_real": config.correo_real},
             "modo_prueba": {"activo": config.modo_prueba, "telefono": config.telefono_prueba, "correos": config.correos_prueba}}
 
 
@@ -555,8 +557,17 @@ def api_empresa(request: Request):
 
 @app.put("/api/empresa")
 def api_empresa_cambiar(request: Request, entrada: EmpresaCambio):
-    e = empresas.actualizar(empresa_de(request), **entrada.model_dump(exclude_none=True))
-    return empresas.publico(e) if e else JSONResponse({"error": "no existe"}, status_code=404)
+    emp_id = empresa_de(request)
+    antes = bool(empresas.config_de(emp_id).get("respetar_ley_2300", True))
+    e = empresas.actualizar(emp_id, **entrada.model_dump(exclude_none=True))
+    if not e:
+        return JSONResponse({"error": "no existe"}, status_code=404)
+    salida = empresas.publico(e)
+    despues = bool(empresas.config_de(emp_id).get("respetar_ley_2300", True))
+    if despues != antes:
+        # Potestad de la empresa: queda en la bitácora con el usuario y se aplica al horario de la secuencia de Dapta.
+        salida["ley_2300"] = pipeline.aplicar_horario_dapta(emp_id, despues, usuario_de(request).get("email", ""))
+    return salida
 
 
 @app.get("/api/empresas")

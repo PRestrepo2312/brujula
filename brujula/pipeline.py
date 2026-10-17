@@ -56,11 +56,16 @@ def _brazos(s, empresa_id: int) -> list[Brazo]:
 def preparar_lote(n: int | None = None, modo: str = "brujula", reparto: dict[str, int] | None = None, usuario: str = "",
                   motivo_override: str = "", empresa_id: int = 1) -> dict:
     """Crea el lote y sus intentos (programados). Respeta la ventana legal salvo override explícito con motivo."""
-    n = n or int(config_de(empresa_id).get("presupuesto_lote", 20))
+    cfg = config_de(empresa_id)
+    n = n or int(cfg.get("presupuesto_lote", 20))
     permitido, razon = ventana_permitida()
     fuera = not permitido
-    if fuera and not motivo_override:
+    respetar = bool(cfg.get("respetar_ley_2300", True))
+    if fuera and respetar and not motivo_override:
         return {"error": f"No se puede contactar ahora: {razon}. Para hacerlo igual, pase un motivo de override.", "fuera_ventana": True}
+    if fuera and not respetar and not motivo_override:
+        # La empresa desactivó el horario legal en su configuración: el lote sale igual y queda constancia.
+        motivo_override = "horario de la Ley 2300 desactivado en la configuración de la empresa"
     with sesion() as s:
         brazos = _brazos(s, empresa_id)
         if modo == "brujula" or not reparto:
@@ -133,8 +138,9 @@ def ejecutar_lote(lote_id: int) -> dict:
             resumen[f"{it.canal}:{r.estado}:{r.proveedor}"] += 1
         s.commit()
         fuera, motivo, usuario = lote.fuera_ventana, lote.override_motivo, lote.override_usuario
-    if fuera and resumen.get("voz:programado:dapta", 0) > 0:
+    if fuera and resumen.get("voz:programado:dapta", 0) > 0 and config_de(empresa_id).get("respetar_ley_2300", True):
         # El override del usuario también abre el horario de la secuencia de Dapta (dos horas); sincronizar lo restaura.
+        # (Con el horario legal desactivado en la configuración, la secuencia ya está sin límite y no hace falta.)
         try:
             r = canales["voz"].abrir_ventana_hoy()
             hasta = (datetime.utcnow() + timedelta(hours=2)).isoformat()
@@ -144,6 +150,21 @@ def ejecutar_lote(lote_id: int) -> dict:
             anotar("error", f"no se pudo abrir el horario de la secuencia de Dapta: {e}"[:300], empresa_id, lote_id=lote_id)
     notificar(empresa_id, "lote", f"Lote {lote_id} enviado: " + ", ".join(f"{k} {v}" for k, v in resumen.items()))
     return {"lote_id": lote_id, "resultado": dict(resumen)}
+
+
+def aplicar_horario_dapta(empresa_id: int, respetar: bool, usuario: str = "") -> dict:
+    """Al cambiar respetar_ley_2300 en la configuración: horario legal o sin límite en la secuencia de Dapta, y constancia en la bitácora."""
+    voz = canal_de("voz", empresa_id=empresa_id)
+    r: dict = {}
+    if voz.real:
+        try:
+            r = voz.aplicar_horario(respetar)
+        except Exception as e:  # noqa: BLE001
+            r = {"error": str(e)[:200]}
+    texto = ("Horario de la Ley 2300 activado" if respetar
+             else "Horario de la Ley 2300 DESACTIVADO: la empresa asume la responsabilidad de contactar fuera del horario legal")
+    anotar("ley_2300", f"{texto} por {usuario or 'sistema'}", empresa_id, usuario=usuario, respetar=respetar, dapta=r.get("verified") if isinstance(r, dict) else None)
+    return {"respetar_ley_2300": respetar, "dapta": r}
 
 
 def _dict_json(valor) -> dict:
@@ -171,7 +192,7 @@ def restaurar_ventana_dapta_si_vencio(voz, empresa_id: int = 1) -> bool:
     if cierre or not hasta or datetime.utcnow().isoformat() < hasta:
         return False
     try:
-        voz.restaurar_ventana_legal()
+        voz.aplicar_horario(config_de(empresa_id).get("respetar_ley_2300", True))
         anotar("override_dapta_cierre", "Horario de la Ley 2300 restaurado en la secuencia de Dapta", empresa_id, override_id=ultimo_id)
         return True
     except Exception as e:  # noqa: BLE001

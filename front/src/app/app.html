@@ -13,8 +13,9 @@
       @if (estado(); as e) {
         @if (e.modo_prueba?.activo) {<span class="pill prueba" title="Las llamadas se desvían al número de prueba y los correos a los correos verificados del equipo; ningún lead recibe nada">MODO PRUEBA → {{ e.modo_prueba.telefono || 'sin número' }}</span>}
         <span class="ventana" [class.ok]="e.ventana_ok" [class.no]="!e.ventana_ok">{{ e.ventana_ok ? 'Se puede contactar' : 'Fuera de ventana · ' + e.razon }}</span>
-        <span class="agente" title="Bedrock, Jev y Dapta">
-          <b [class.on]="e.agente.bedrock">Bedrock</b> <b [class.on]="e.agente.jev">Jev</b> <b [class.on]="e.agente.dapta_voz_real">Dapta</b>
+        @if (e.respetar_ley_2300 === false) {<span class="ventana no" title="La empresa desactivó el horario legal en Configuración">Ley 2300 desactivada</span>}
+        <span class="agente" [title]="'Agente de texto: ' + e.agente.llm + (e.agente.llm_error ? ' · ' + e.agente.llm_error : '')">
+          <b [class.on]="e.agente.llm !== 'reglas'">{{ e.agente.llm === 'reglas' ? 'LLM: reglas' : e.agente.llm }}</b> <b [class.on]="e.agente.jev">Jev</b> <b [class.on]="e.agente.dapta_voz_real">Dapta</b>
         </span>
       }
       <span class="usuario">{{ auth.email }}</span>

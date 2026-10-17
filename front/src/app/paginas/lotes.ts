@@ -14,13 +14,16 @@ import { AuthService } from '../core/auth.service';
         <h2>Nuevo lote</h2>
         @if (estado(); as e) {
           @if (e.modo_prueba?.activo) {<div class="aviso">Modo prueba: el lote se arma con los leads reales (nombre, señales y pitch), pero la llamada se desvía a {{ e.modo_prueba.telefono || 'ningún número (falta TELEFONO_PRUEBA)' }} (una por lote) y los correos a {{ e.modo_prueba.correos.join(', ') || 'ningún correo' }}. Ningún lead recibe nada.</div>}
-          @if (!e.ventana_ok) {<div class="aviso">Fuera de la ventana de la Ley 2300 ({{ e.razon }}). Para contactar igual escriba el motivo: queda en la bitácora con su usuario ({{ auth.email }}) y el horario de la secuencia de Dapta se abre hoy por dos horas.</div>}
+          @if (!e.ventana_ok) {
+            @if (e.respetar_ley_2300 === false) {<div class="aviso">Fuera del horario de la Ley 2300 ({{ e.razon }}): la empresa desactivó esa restricción en Configuración, así que el lote sale sin motivo y queda en la bitácora.</div>}
+            @else {<div class="aviso">Fuera de la ventana de la Ley 2300 ({{ e.razon }}). Para contactar igual escriba el motivo: queda en la bitácora con su usuario ({{ auth.email }}) y el horario de la secuencia de Dapta se abre hoy por dos horas.</div>}
+          }
         }
         <div class="fila c2" style="margin:0 0 10px">
           <div><label>Cuántos leads</label><input type="number" [(ngModel)]="n" min="1" max="500"></div>
           <div><label>Modo</label><select [(ngModel)]="modo"><option value="brujula">La brújula reparte</option><option value="manual">Manual (priors)</option></select></div>
         </div>
-        @if (estado() && !estado().ventana_ok) {<div><label>Motivo del override</label><input [(ngModel)]="motivo" placeholder="p. ej. demo con números del equipo"></div>}
+        @if (estado() && !estado().ventana_ok && estado().respetar_ley_2300 !== false) {<div><label>Motivo del override</label><input [(ngModel)]="motivo" placeholder="p. ej. demo con números del equipo"></div>}
         <div class="acciones" style="margin-top:12px"><button class="boton" (click)="crear()" [disabled]="ocupado()">Preparar y enviar</button></div>
         @if (resultado(); as r) {
           @if (r.error) {<div class="aviso">{{ r.error }}</div>} @else {
