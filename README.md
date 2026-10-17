@@ -43,9 +43,17 @@ Pruebas: `pip install -r requirements-dev.txt && python -m pytest`.
 
 Brújula habla con Dapta por su MCP (`https://mcp.dapta.ai/mcp`, cabecera `x-api-key`). `cli.py dapta-setup` crea el agente calificador (propósito 103, voz colombiana, variables post-llamada: interesado, pierde_contactos, mejor_momento, correo_demo, baja) con webhook a `/webhook/dapta`, y la secuencia con el horario de la Ley 2300. Los contactos se adjuntan por `commit_attach_sequence_contacts`; **la secuencia se activa en el panel de Dapta** (el MCP no arranca llamadas). Las llamadas necesitan un plan con créditos (la prueba Pro sirve).
 
+## API y front
+
+El servidor expone la API JSON en `/api/*` (OpenAPI en `/api/docs`) con CORS configurable (`CORS_ORIGINS`): métricas, leads con filtros y paginación, detalle y revisión humana de un lead, creación de lotes, lotes, bitácora, ICP, sincronización con Dapta, archivos y exportaciones. El tablero HTML que sirve el propio servidor usa la misma lógica y es el que se despliega. Un front separado (Angular en S3 + CloudFront) consume esta API sin cambios en el servidor.
+
+## Archivos: S3 con URL prefirmadas
+
+Subidas (lista propia de la pyme en CSV o el RNE de la CRC): `POST /api/archivos/url-subida` devuelve una URL prefirmada de PUT válida 15 minutos y una clave; el navegador sube directo a S3 y luego llama a `POST /api/archivos/procesar` con la clave y el tipo (`leads_csv` o `rne`). Exportaciones (`GET /api/exportar/leads|intentos|bitacora`): el servidor genera el CSV, lo guarda en el bucket y devuelve una URL prefirmada de GET válida 15 minutos. El bucket es privado y las subidas caducan a los 30 días. Sin bucket (`EXPORT_BUCKET` vacío) el mismo flujo corre en disco local, y así corren las pruebas.
+
 ## Arquitectura en AWS
 
-`deploy/cloudformation.yml` levanta App Runner (contenedor de ECR, HTTPS), PostgreSQL en RDS, Secrets Manager, S3 para exportaciones y EventBridge con dos reglas: el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta cada 15 minutos. `deploy/deploy.sh` construye la imagen, la sube a ECR y despliega la pila. Detalle y decisiones en `docs/arquitectura.md`.
+`deploy/cloudformation.yml` levanta App Runner (contenedor de ECR, HTTPS), PostgreSQL en RDS, Secrets Manager, S3 con CORS para las URL prefirmadas y EventBridge con dos reglas: el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta cada 15 minutos. `deploy/deploy.sh` construye la imagen, la sube a ECR y despliega la pila. `deploy/iam-politica-despliegue.json` es la política mínima del usuario que despliega. Detalle y decisiones en `docs/arquitectura.md`.
 
 ## Fuentes y licencias
 

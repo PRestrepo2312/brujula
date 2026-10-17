@@ -46,6 +46,8 @@ class Config:
     aws_region: str = field(default_factory=lambda: _env("AWS_REGION", "us-east-1"))
     email_from: str = field(default_factory=lambda: _env("EMAIL_FROM", "Brújula <hola@example.com>"))
     cron_key: str = field(default_factory=lambda: _env("CRON_KEY"))
+    export_bucket: str = field(default_factory=lambda: _env("EXPORT_BUCKET"))
+    cors_origins: str = field(default_factory=lambda: _env("CORS_ORIGINS", "*"))
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL", "http://localhost:8000"))
     socrata_app_token: str = field(default_factory=lambda: _env("SOCRATA_APP_TOKEN"))
     denue_token: str = field(default_factory=lambda: _env("DENUE_TOKEN"))

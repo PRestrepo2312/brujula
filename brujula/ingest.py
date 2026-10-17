@@ -24,8 +24,9 @@ def asegurar_fuente(c) -> Fuente:
         return f
 
 
-def ingerir(clave: str, *, ciudad: str = "", sector: str = "", limite: int = 500, segundos_computo: float | None = None) -> dict:
-    c = conector(clave)
+def ingerir(clave: str, *, ciudad: str = "", sector: str = "", limite: int = 500, segundos_computo: float | None = None,
+            conector_listo=None) -> dict:
+    c = conector_listo or conector(clave)
     asegurar_fuente(c)
     inicio = datetime.utcnow()
     nuevos = 0
@@ -64,3 +65,12 @@ def ingerir(clave: str, *, ciudad: str = "", sector: str = "", limite: int = 500
         s.commit()
     dd = deduplicar(ids) if ids else {"revisados": 0, "duplicados": 0}
     return {"fuente": clave, "nuevos": nuevos, "ya_estaban": repetidos_misma_fuente, "dedupe": dd, "segundos": round(seg, 1)}
+
+
+def ingerir_csv(datos: bytes, nombre_archivo: str = "lista.csv", pais: str = "CO") -> dict:
+    """Lista propia de la pyme: misma normalización, deduplicación y costo que una fuente pública."""
+    from .sources.csv_propio import ConectorCSV
+    c = ConectorCSV(datos, pais=pais)
+    r = ingerir("csv", limite=100000, conector_listo=c)
+    r["archivo"] = nombre_archivo
+    return r

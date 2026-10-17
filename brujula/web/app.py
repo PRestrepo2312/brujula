@@ -4,20 +4,49 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sqlmodel import func, select
 
-from .. import metrics, pipeline
-from ..compliance import ahora_local, proxima_ventana, ventana_permitida
+from .. import metrics, pipeline, storage
+from ..compliance import ahora_local, cargar_rne_csv, proxima_ventana, ventana_permitida
+from ..config import config
 from ..db import crear_tablas, sesion
 from ..icp import ICP
-from ..models import Bitacora, Intento, Lead, Lote
+from ..ingest import ingerir_csv
+from ..models import Bitacora, Calificacion, Intento, Lead, Lote
 
-app = FastAPI(title="Brújula", docs_url="/api/docs")
+app = FastAPI(title="Brújula", docs_url="/api/docs", openapi_url="/api/openapi.json",
+              description="API de Brújula: fuentes, leads, lotes, métricas, archivos y webhooks. Un front separado consume estas rutas.")
+app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in config.cors_origins.split(",")], allow_methods=["*"], allow_headers=["*"])
 plantillas = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 crear_tablas()
+
+
+class LoteEntrada(BaseModel):
+    n: int = 20
+    modo: str = "brujula"
+    reparto: dict[str, int] | None = None
+    usuario: str = ""
+    motivo_override: str = ""
+
+
+class RevisionEntrada(BaseModel):
+    decision: str   # aprobar | descartar
+
+
+class ArchivoEntrada(BaseModel):
+    nombre: str
+    content_type: str = "text/csv"
+
+
+class ProcesarEntrada(BaseModel):
+    clave: str
+    tipo: str        # leads_csv | rne
+    pais: str = "CO"
 
 
 def ctx(request: Request, **extra) -> dict:
@@ -173,16 +202,144 @@ def healthz():
     return {"ok": True}
 
 
+# ---------------- API JSON (la consume el tablero de un front separado) ----------------
+
 @app.get("/api/metricas")
 def api_metricas():
     return metrics.calcular()
 
 
 @app.get("/api/leads")
-def api_leads(limite: int = 200):
+def api_leads(estado: str = "", fuente: str = "", q: str = "", limite: int = 200, pagina: int = 1):
     with sesion() as s:
-        filas = s.exec(select(Lead).where(Lead.duplicado_de.is_(None)).order_by(Lead.icp_score.desc()).limit(limite)).all()
+        st = select(Lead).where(Lead.duplicado_de.is_(None))
+        if estado:
+            st = st.where(Lead.icp_estado == estado) if estado in ("pasa", "revisar", "descarta", "pendiente") else st.where(Lead.estado == estado)
+        if fuente:
+            st = st.where(Lead.fuente_clave == fuente)
+        if q:
+            st = st.where(Lead.razon_social.contains(q.upper()))
+        filas = s.exec(st.order_by(Lead.icp_score.desc(), Lead.id).offset((pagina - 1) * limite).limit(limite)).all()
     return [{k: v for k, v in l.model_dump().items() if k != "crudo"} for l in filas]
+
+
+@app.get("/api/lead/{lead_id}")
+def api_lead(lead_id: int):
+    with sesion() as s:
+        l = s.get(Lead, lead_id)
+        if not l:
+            return JSONResponse({"error": "no existe"}, status_code=404)
+        intentos = s.exec(select(Intento).where(Intento.lead_id == lead_id).order_by(Intento.id)).all()
+        calis = s.exec(select(Calificacion).where(Calificacion.lead_id == lead_id)).all()
+        dup = s.exec(select(Lead.id, Lead.razon_social, Lead.fuente_clave).where(Lead.duplicado_de == lead_id)).all()
+    return {"lead": {k: v for k, v in l.model_dump().items() if k != "crudo"}, "intentos": [i.model_dump() for i in intentos],
+            "calificaciones": [c.model_dump() for c in calis], "duplicados": [{"id": d[0], "razon_social": d[1], "fuente": d[2]} for d in dup]}
+
+
+@app.post("/api/lead/{lead_id}/revision")
+def api_lead_revision(lead_id: int, entrada: RevisionEntrada):
+    lead_revision(lead_id, entrada.decision)
+    return {"ok": True, "lead_id": lead_id, "decision": entrada.decision}
+
+
+@app.post("/api/lote")
+def api_lote(entrada: LoteEntrada):
+    r = pipeline.preparar_lote(n=entrada.n, modo=entrada.modo, reparto=entrada.reparto, usuario=entrada.usuario, motivo_override=entrada.motivo_override)
+    if "lote_id" in r:
+        r["envio"] = pipeline.ejecutar_lote(r["lote_id"])
+    return r
+
+
+@app.get("/api/lotes")
+def api_lotes(limite: int = 50):
+    with sesion() as s:
+        lotes = s.exec(select(Lote).order_by(Lote.id.desc()).limit(limite)).all()
+    return [l.model_dump() for l in lotes]
+
+
+@app.get("/api/bitacora")
+def api_bitacora(limite: int = 100, tipo: str = ""):
+    with sesion() as s:
+        st = select(Bitacora).order_by(Bitacora.id.desc()).limit(limite)
+        if tipo:
+            st = st.where(Bitacora.tipo == tipo)
+        return [b.model_dump() for b in s.exec(st).all()]
+
+
+@app.get("/api/icp")
+def api_icp():
+    return ICP.cargar().__dict__
+
+
+@app.put("/api/icp")
+def api_icp_guardar(entrada: dict):
+    icp = ICP(**{k: v for k, v in entrada.items() if k in ICP.__dataclass_fields__})
+    icp.guardar()
+    return icp.__dict__
+
+
+@app.post("/api/sincronizar")
+def api_sincronizar():
+    return {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(), "dapta": pipeline.sincronizar_dapta()}
+
+
+@app.post("/api/simular")
+def api_simular():
+    return pipeline.simular_resultados()
+
+
+# ---------------- Archivos: S3 con URL prefirmadas (o local sin bucket) ----------------
+
+@app.post("/api/archivos/url-subida")
+def api_url_subida(entrada: ArchivoEntrada):
+    """Devuelve la URL prefirmada (PUT, 15 min) y la clave. El navegador sube directo a S3; luego llama a /api/archivos/procesar."""
+    return storage.Almacen().url_subida(entrada.nombre, entrada.content_type)
+
+
+@app.post("/api/archivos/subir-local")
+async def api_subir_local(clave: str = Form(...), archivo: UploadFile = File(...)):
+    """Solo sin bucket: recibe el archivo en el servidor bajo la clave acordada."""
+    datos = await archivo.read()
+    storage.Almacen().guardar(clave, datos, archivo.content_type or "application/octet-stream")
+    return {"clave": clave, "bytes": len(datos)}
+
+
+@app.post("/api/archivos/procesar")
+def api_procesar(entrada: ProcesarEntrada):
+    """Procesa un archivo ya subido: leads_csv (lista propia de la pyme) o rne (lista de exclusión de la CRC)."""
+    alm = storage.Almacen()
+    if not alm.existe(entrada.clave):
+        return JSONResponse({"error": "la clave no existe en el almacén"}, status_code=404)
+    datos = alm.leer(entrada.clave)
+    if entrada.tipo == "leads_csv":
+        return ingerir_csv(datos, entrada.clave.rsplit("/", 1)[-1], pais=entrada.pais)
+    if entrada.tipo == "rne":
+        import tempfile
+        with tempfile.NamedTemporaryFile("wb", suffix=".csv", delete=False) as f:
+            f.write(datos)
+            ruta = f.name
+        return {"excluidos_cargados": cargar_rne_csv(ruta)}
+    return JSONResponse({"error": "tipo desconocido: leads_csv | rne"}, status_code=400)
+
+
+@app.get("/api/exportar/{tipo}")
+def api_exportar(tipo: str):
+    """Genera el CSV (leads | intentos | bitacora), lo guarda y devuelve la URL de descarga con vencimiento."""
+    try:
+        return storage.exportar(tipo)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/api/archivos/local/{clave:path}")
+def api_archivo_local(clave: str):
+    try:
+        ruta = storage.ruta_local(clave)
+    except ValueError:
+        return JSONResponse({"error": "clave inválida"}, status_code=400)
+    if not ruta.exists():
+        return JSONResponse({"error": "no existe"}, status_code=404)
+    return FileResponse(str(ruta), filename=ruta.name)
 
 
 @app.get("/api/estado")

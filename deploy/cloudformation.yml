@@ -30,6 +30,10 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 16
+  CorsOrigins:
+    Type: String
+    Default: "*"
+    Description: Orígenes permitidos para la API (el dominio del front en CloudFront), separados por coma.
 
 Resources:
   # --- Base de datos ---
@@ -114,6 +118,7 @@ Resources:
               - {Name: EMAIL_FROM, Value: !Ref EmailFrom}
               - {Name: AWS_REGION, Value: !Ref "AWS::Region"}
               - {Name: EXPORT_BUCKET, Value: !Ref Exportaciones}
+              - {Name: CORS_ORIGINS, Value: !Ref CorsOrigins}
       InstanceConfiguration:
         Cpu: "0.5 vCPU"
         Memory: "1 GB"
@@ -129,6 +134,19 @@ Resources:
     Properties:
       BucketName: !Sub "brujula-exportaciones-${AWS::AccountId}"
       PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      # Subidas directas desde el navegador con URL prefirmada (PUT) y descargas con URL prefirmada (GET).
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [PUT, GET, HEAD]
+            AllowedHeaders: ["*"]
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: subidas-30-dias
+            Status: Enabled
+            Prefix: subidas/
+            ExpirationInDays: 30
 
   # --- Cron: EventBridge llama al servicio por HTTPS (API destination) ---
   ConexionCron:

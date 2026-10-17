@@ -12,7 +12,10 @@ Un servicio web (FastAPI) con conectores a fuentes públicas, una base PostgreSQ
 | **Secrets Manager** | Clave MCP de Dapta, OpenRouter (Jev), Resend, clave del cron y la URL de la base. | Las claves no van en la imagen ni en variables planas; App Runner las inyecta como secretos. |
 | **EventBridge** (API destinations) | Regla 1: `POST /cron/lote` cada hora, L-V 7 a 18 y sábados 8 a 14 (Bogotá). Regla 2: `POST /cron/sincronizar` cada 15 min. | Es el "cada lote" de la brújula sin un proceso vivo. La app vuelve a validar la ventana legal: EventBridge propone, el cumplimiento dispone. |
 | **S3** | Exportaciones (leads, bitácora) y copias de lo descargado de cada fuente. | Reproducibilidad: el jurado puede ver con qué datos se corrió cada lote. |
-| **Amazon SES** (opcional) | Canal correo con eventos (entrega, apertura, clic, rebote) por SNS a `/webhook/ses`. | Exige dominio verificado con DKIM y salir del sandbox. Si no da tiempo, Resend hace lo mismo con la misma interfaz. |
+| **Amazon SES** | Canal correo con eventos (entrega, apertura, clic, rebote) por SNS a `/webhook/ses`. | Dominio verificado con DKIM en Route 53 y salida del sandbox. Resend es el segundo proveedor con la misma interfaz (`EMAIL_PROVIDER`). |
+| **S3 con URL prefirmadas** | Subidas desde el navegador (listas propias de la pyme, RNE de la CRC) con PUT prefirmado de 15 minutos; exportaciones (leads, intentos, bitácora) con GET prefirmado de 15 minutos. Bucket privado, CORS para PUT/GET, las subidas caducan a los 30 días. | El servidor nunca recibe el archivo ni lo sirve: firma y procesa por clave. Sin bucket, el mismo flujo corre local. |
+| **Route 53** | DNS del dominio del equipo: registros DKIM de SES y, para el front, el alias de CloudFront. | Dominio propio para que el correo no caiga en spam. |
+| **Front separado** | Angular, estático en S3 detrás de CloudFront, consumiendo `/api/*` (OpenAPI en `/api/docs`, CORS por `CORS_ORIGINS`). El tablero HTML del servidor es el que corre hoy y queda como respaldo. | API primero: el servidor no depende del front para funcionar. |
 | **CloudWatch** | Logs de App Runner. | Viene solo. |
 
 Fuera de AWS, a propósito:
