@@ -23,12 +23,12 @@ def _div(a: float, b: float) -> float | None:
     return round(a / b, 4) if b else None
 
 
-def calcular() -> dict:
+def calcular(empresa_id: int = 1) -> dict:
     with sesion() as s:
-        leads = s.exec(select(Lead).where(Lead.duplicado_de.is_(None))).all()
-        intentos = s.exec(select(Intento)).all()
-        calis = s.exec(select(Calificacion)).all()
-        costos = s.exec(select(Costo)).all()
+        leads = s.exec(select(Lead).where(Lead.duplicado_de.is_(None), Lead.empresa_id == empresa_id)).all()
+        intentos = s.exec(select(Intento).where(Intento.empresa_id == empresa_id)).all()
+        calis = s.exec(select(Calificacion).where(Calificacion.empresa_id == empresa_id)).all()
+        costos = s.exec(select(Costo).where(Costo.empresa_id == empresa_id)).all()
     lead_por_id = {l.id: l for l in leads}
     calificados = {c.lead_id for c in calis if c.resultado == "calificado"}
     no_calificados = {c.lead_id for c in calis if c.resultado == "no_calificado"}

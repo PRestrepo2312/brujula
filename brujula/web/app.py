@@ -1,4 +1,4 @@
-"""Tablero y webhooks de Brújula (FastAPI + Jinja2)."""
+"""Tablero, API JSON y webhooks de Brújula (FastAPI + Jinja2). Todo está aislado por empresa."""
 from __future__ import annotations
 
 import json
@@ -11,21 +11,87 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlmodel import func, select
 
-from .. import auth, metrics, pipeline, storage
+from .. import agente, auth, empresas, metrics, notificaciones, pipeline, storage
 from ..compliance import ahora_local, cargar_rne_csv, proxima_ventana, ventana_permitida
 from ..config import config
 from ..db import crear_tablas, sesion
 from ..icp import ICP
-from ..ingest import ingerir_csv
+from ..ingest import buscar as buscar_fuentes, ingerir_csv
 from ..models import Bitacora, Calificacion, Intento, Lead, Lote
+from ..sources import CONECTORES
 
 app = FastAPI(title="Brújula", docs_url="/api/docs", openapi_url="/api/openapi.json",
-              description="API de Brújula: fuentes, leads, lotes, métricas, archivos y webhooks. Un front separado consume estas rutas con un JWT de Cognito.")
+              description="API de Brújula: empresas, ICP con agente, fuentes, leads, lotes, métricas, notificaciones, archivos y webhooks. Un front separado consume estas rutas con un JWT de Cognito.")
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in config.cors_origins.split(",")], allow_methods=["*"], allow_headers=["*"])
 plantillas = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 crear_tablas()
 cognito = auth.Cognito()
 
+
+# ---------------- Modelos de entrada ----------------
+
+class LoteEntrada(BaseModel):
+    n: int | None = None
+    modo: str = "brujula"
+    reparto: dict[str, int] | None = None
+    usuario: str = ""
+    motivo_override: str = ""
+
+
+class RevisionEntrada(BaseModel):
+    decision: str   # aprobar | descartar
+
+
+class ArchivoEntrada(BaseModel):
+    nombre: str
+    content_type: str = "text/csv"
+
+
+class ProcesarEntrada(BaseModel):
+    clave: str
+    tipo: str        # leads_csv | rne
+    pais: str = "CO"
+
+
+class TextoEntrada(BaseModel):
+    texto: str
+
+
+class BusquedaEntrada(BaseModel):
+    fuentes: list[str] = ["reps", "rnt", "men"]
+    ciudad: str = "BOGOTA"
+    sector: str = ""
+    limite: int = 100
+
+
+class EmpresaEntrada(BaseModel):
+    nombre: str
+    correo_notificaciones: str = ""
+    icp_texto: str = ""
+
+
+class EmpresaCambio(BaseModel):
+    nombre: str | None = None
+    correo_notificaciones: str | None = None
+    dapta_api_key: str | None = None
+    dapta_agent_id: str | None = None
+    dapta_sequence_id: str | None = None
+    config: dict | None = None
+
+
+class UsuarioEntrada(BaseModel):
+    email: str
+    empresa_id: int
+    rol: str = "usuario"
+
+
+class RespuestaEntrada(BaseModel):
+    lead_id: int
+    texto: str
+    canal: str = "whatsapp"
+
+
+# ---------------- Sesión y empresa ----------------
 
 @app.middleware("http")
 async def exigir_login(request: Request, call_next):
@@ -38,6 +104,33 @@ async def exigir_login(request: Request, call_next):
             return JSONResponse({"error": "autenticación requerida: Bearer JWT de Cognito"}, status_code=401)
         return RedirectResponse(f"/login?next={ruta}", status_code=303)
     return await call_next(request)
+
+
+def usuario_de(request: Request) -> dict:
+    return getattr(request.state, "usuario", None) or {"email": "local", "empresa_id": 1, "rol": "admin"}
+
+
+def empresa_de(request: Request) -> int:
+    """La empresa del usuario; un admin puede mirar otra con ?empresa=ID."""
+    u = usuario_de(request)
+    if u.get("rol") == "admin":
+        q = request.query_params.get("empresa")
+        if q and q.isdigit():
+            return int(q)
+    return int(u.get("empresa_id") or 1)
+
+
+def es_admin(request: Request) -> bool:
+    return usuario_de(request).get("rol") == "admin"
+
+
+def ctx(request: Request, **extra) -> dict:
+    ok, razon = ventana_permitida()
+    usuario = usuario_de(request)
+    emp = empresas.obtener(empresa_de(request))
+    return {"request": request, "ventana_ok": ok, "ventana_razon": razon, "ahora": ahora_local().strftime("%a %d %b, %H:%M"),
+            "proxima": proxima_ventana().strftime("%a %d %b, %H:%M"), "usuario": usuario, "login_activo": cognito.activo,
+            "empresa": emp, **extra}
 
 
 @app.get("/login")
@@ -69,52 +162,27 @@ def logout():
 
 @app.get("/api/yo")
 def api_yo(request: Request):
-    return {"usuario": request.state.usuario, "login_activo": cognito.activo}
+    u = usuario_de(request)
+    return {"usuario": u, "login_activo": cognito.activo, "empresa_id": empresa_de(request), "admin": es_admin(request)}
 
 
-class LoteEntrada(BaseModel):
-    n: int = 20
-    modo: str = "brujula"
-    reparto: dict[str, int] | None = None
-    usuario: str = ""
-    motivo_override: str = ""
-
-
-class RevisionEntrada(BaseModel):
-    decision: str   # aprobar | descartar
-
-
-class ArchivoEntrada(BaseModel):
-    nombre: str
-    content_type: str = "text/csv"
-
-
-class ProcesarEntrada(BaseModel):
-    clave: str
-    tipo: str        # leads_csv | rne
-    pais: str = "CO"
-
-
-def ctx(request: Request, **extra) -> dict:
-    ok, razon = ventana_permitida()
-    usuario = getattr(request.state, "usuario", None) or {}
-    return {"request": request, "ventana_ok": ok, "ventana_razon": razon, "ahora": ahora_local().strftime("%a %d %b, %H:%M"),
-            "proxima": proxima_ventana().strftime("%a %d %b, %H:%M"), "usuario": usuario, "login_activo": cognito.activo, **extra}
-
+# ---------------- Tablero HTML del servidor ----------------
 
 @app.get("/", response_class=HTMLResponse)
 def tablero(request: Request):
-    m = metrics.calcular()
+    emp_id = empresa_de(request)
+    m = metrics.calcular(emp_id)
     with sesion() as s:
-        lotes = s.exec(select(Lote).order_by(Lote.id.desc()).limit(8)).all()
-        bitacora = s.exec(select(Bitacora).order_by(Bitacora.id.desc()).limit(12)).all()
-    return plantillas.TemplateResponse("tablero.html", ctx(request, m=m, lotes=lotes, bitacora=bitacora, icp=ICP.cargar(), m_json=json.dumps(m)))
+        lotes = s.exec(select(Lote).where(Lote.empresa_id == emp_id).order_by(Lote.id.desc()).limit(8)).all()
+        bitacora = s.exec(select(Bitacora).where(Bitacora.empresa_id == emp_id).order_by(Bitacora.id.desc()).limit(12)).all()
+    return plantillas.TemplateResponse("tablero.html", ctx(request, m=m, lotes=lotes, bitacora=bitacora, icp=empresas.icp_de(emp_id), m_json=json.dumps(m)))
 
 
 @app.get("/leads", response_class=HTMLResponse)
 def leads(request: Request, estado: str = "", fuente: str = "", q: str = ""):
+    emp_id = empresa_de(request)
     with sesion() as s:
-        st = select(Lead).where(Lead.duplicado_de.is_(None))
+        st = select(Lead).where(Lead.duplicado_de.is_(None), Lead.empresa_id == emp_id)
         if estado:
             st = st.where(Lead.icp_estado == estado) if estado in ("pasa", "revisar", "descarta", "pendiente") else st.where(Lead.estado == estado)
         if fuente:
@@ -122,23 +190,27 @@ def leads(request: Request, estado: str = "", fuente: str = "", q: str = ""):
         if q:
             st = st.where(Lead.razon_social.contains(q.upper()))
         filas = s.exec(st.order_by(Lead.icp_score.desc(), Lead.id).limit(300)).all()
-        fuentes = [r[0] for r in s.exec(select(Lead.fuente_clave).distinct()).all()]
+        fuentes = [r for r in s.exec(select(Lead.fuente_clave).where(Lead.empresa_id == emp_id).distinct()).all()]
     return plantillas.TemplateResponse("leads.html", ctx(request, leads=filas, fuentes=fuentes, estado=estado, fuente=fuente, q=q))
 
 
 @app.get("/lead/{lead_id}", response_class=HTMLResponse)
 def lead_detalle(request: Request, lead_id: int):
+    emp_id = empresa_de(request)
     with sesion() as s:
         l = s.get(Lead, lead_id)
+        if not l or l.empresa_id != emp_id:
+            return RedirectResponse("/leads", status_code=303)
         intentos = s.exec(select(Intento).where(Intento.lead_id == lead_id).order_by(Intento.id)).all()
         dup = s.exec(select(Lead).where(Lead.duplicado_de == lead_id)).all()
     return plantillas.TemplateResponse("lead.html", ctx(request, l=l, intentos=intentos, duplicados=dup))
 
 
-@app.post("/lead/{lead_id}/revision")
-def lead_revision(lead_id: int, decision: str = Form(...)):
+def _revisar(lead_id: int, decision: str, emp_id: int) -> bool:
     with sesion() as s:
         l = s.get(Lead, lead_id)
+        if not l or l.empresa_id != emp_id:
+            return False
         if decision == "aprobar":
             l.icp_estado, l.estado = "pasa", "listo"
         else:
@@ -146,13 +218,20 @@ def lead_revision(lead_id: int, decision: str = Form(...)):
         l.icp_detalle = {**(l.icp_detalle or {}), "revision_humana": decision}
         s.add(l)
         s.commit()
+        return True
+
+
+@app.post("/lead/{lead_id}/revision")
+def lead_revision(request: Request, lead_id: int, decision: str = Form(...)):
+    _revisar(lead_id, decision, empresa_de(request))
     return RedirectResponse(f"/lead/{lead_id}", status_code=303)
 
 
 @app.post("/lote/nuevo")
 def lote_nuevo(request: Request, n: int = Form(20), modo: str = Form("brujula"), usuario: str = Form(""), motivo_override: str = Form("")):
-    quien = (getattr(request.state, "usuario", None) or {}).get("email") if cognito.activo else usuario
-    r = pipeline.preparar_lote(n=n, modo=modo, usuario=quien or usuario, motivo_override=motivo_override)
+    emp_id = empresa_de(request)
+    quien = usuario_de(request).get("email") if cognito.activo else usuario
+    r = pipeline.preparar_lote(n=n, modo=modo, usuario=quien or usuario, motivo_override=motivo_override, empresa_id=emp_id)
     if "error" in r:
         return RedirectResponse(f"/?aviso={r['error']}", status_code=303)
     pipeline.ejecutar_lote(r["lote_id"])
@@ -160,15 +239,14 @@ def lote_nuevo(request: Request, n: int = Form(20), modo: str = Form("brujula"),
 
 
 @app.post("/sincronizar")
-def sincronizar():
-    r1 = pipeline.pasar_a_dapta_los_que_respondieron()
-    r2 = pipeline.sincronizar_dapta()
-    return JSONResponse({"calificador": r1, "dapta": r2})
+def sincronizar(request: Request):
+    emp_id = empresa_de(request)
+    return JSONResponse({"calificador": pipeline.pasar_a_dapta_los_que_respondieron(emp_id), "dapta": pipeline.sincronizar_dapta(empresa_id=emp_id)})
 
 
 @app.post("/simular")
-def simular():
-    return JSONResponse(pipeline.simular_resultados())
+def simular(request: Request):
+    return JSONResponse(pipeline.simular_resultados(empresa_id=empresa_de(request)))
 
 
 @app.get("/r/{token}", response_class=HTMLResponse)
@@ -176,6 +254,8 @@ def respuesta_correo(request: Request, token: str, v: str = "no"):
     r = pipeline.registrar_respuesta_token(token, v if v in ("si", "no", "baja") else "no")
     return plantillas.TemplateResponse("gracias.html", ctx(request, r=r, v=v))
 
+
+# ---------------- Webhooks ----------------
 
 @app.post("/webhook/dapta")
 async def webhook_dapta(request: Request):
@@ -226,23 +306,24 @@ async def webhook_ses(request: Request):
 
 
 @app.post("/cron/lote")
-def cron_lote(request: Request, n: int = 20):
-    """Lo llama EventBridge cada hora dentro de la ventana legal: la brújula reparte y envía el siguiente lote."""
-    from ..config import config as cfg
-    if cfg.cron_key and request.headers.get("x-cron-key") != cfg.cron_key:
+def cron_lote(request: Request, n: int | None = None):
+    """Lo llama EventBridge cada hora dentro de la ventana legal: la brújula reparte y envía el siguiente lote de cada empresa."""
+    if config.cron_key and request.headers.get("x-cron-key") != config.cron_key:
         return JSONResponse({"error": "clave de cron inválida"}, status_code=401)
-    r = pipeline.preparar_lote(n=n, modo="brujula")
-    if "lote_id" in r:
-        r["envio"] = pipeline.ejecutar_lote(r["lote_id"])
-    return r
+    salida = {}
+    for e in empresas.listar():
+        r = pipeline.preparar_lote(n=n, modo="brujula", empresa_id=e.id)
+        if "lote_id" in r:
+            r["envio"] = pipeline.ejecutar_lote(r["lote_id"])
+        salida[e.id] = r
+    return salida
 
 
 @app.post("/cron/sincronizar")
 def cron_sincronizar(request: Request):
-    from ..config import config as cfg
-    if cfg.cron_key and request.headers.get("x-cron-key") != cfg.cron_key:
+    if config.cron_key and request.headers.get("x-cron-key") != config.cron_key:
         return JSONResponse({"error": "clave de cron inválida"}, status_code=401)
-    return {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(), "dapta": pipeline.sincronizar_dapta()}
+    return {e.id: {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(e.id), "dapta": pipeline.sincronizar_dapta(empresa_id=e.id)} for e in empresas.listar()}
 
 
 @app.get("/healthz")
@@ -250,17 +331,45 @@ def healthz():
     return {"ok": True}
 
 
-# ---------------- API JSON (la consume el tablero de un front separado) ----------------
+# ---------------- API JSON (la consume el front) ----------------
+
+@app.get("/api/estado")
+def api_estado(request: Request):
+    emp_id = empresa_de(request)
+    with sesion() as s:
+        n = s.exec(select(func.count(Lead.id)).where(Lead.empresa_id == emp_id)).one()
+    ok, razon = ventana_permitida()
+    b = agente.bedrock()
+    from ..channels.voz_dapta import CanalVozDapta
+    return {"leads": n, "ventana_ok": ok, "razon": razon, "ahora": ahora_local().isoformat(), "proxima_ventana": proxima_ventana().isoformat(),
+            "agente": {"bedrock": b.disponible, "jev": config.jev_disponible, "dapta_voz_real": CanalVozDapta(emp_id).real, "correo_real": config.correo_real}}
+
 
 @app.get("/api/metricas")
-def api_metricas():
-    return metrics.calcular()
+def api_metricas(request: Request):
+    return metrics.calcular(empresa_de(request))
+
+
+@app.get("/api/fuentes")
+def api_fuentes():
+    return [c().describir() for c in CONECTORES.values()]
+
+
+@app.post("/api/buscar")
+def api_buscar(request: Request, entrada: BusquedaEntrada):
+    """Encontrar: corre las fuentes elegidas, deduplica y puntúa el ICP de la empresa."""
+    emp_id = empresa_de(request)
+    fuentes = [f for f in entrada.fuentes if f in CONECTORES and f != "csv"]
+    r = buscar_fuentes(emp_id, fuentes, ciudad=entrada.ciudad, sector=entrada.sector, limite=max(1, min(entrada.limite, 500)))
+    notificaciones.notificar(emp_id, "busqueda", f"Búsqueda en {', '.join(fuentes)} ({entrada.ciudad or 'todas las ciudades'}): {r['nuevos']} empresas nuevas")
+    return r
 
 
 @app.get("/api/leads")
-def api_leads(estado: str = "", fuente: str = "", q: str = "", limite: int = 200, pagina: int = 1):
+def api_leads(request: Request, estado: str = "", fuente: str = "", q: str = "", limite: int = 200, pagina: int = 1):
+    emp_id = empresa_de(request)
     with sesion() as s:
-        st = select(Lead).where(Lead.duplicado_de.is_(None))
+        st = select(Lead).where(Lead.duplicado_de.is_(None), Lead.empresa_id == emp_id)
         if estado:
             st = st.where(Lead.icp_estado == estado) if estado in ("pasa", "revisar", "descarta", "pendiente") else st.where(Lead.estado == estado)
         if fuente:
@@ -272,10 +381,11 @@ def api_leads(estado: str = "", fuente: str = "", q: str = "", limite: int = 200
 
 
 @app.get("/api/lead/{lead_id}")
-def api_lead(lead_id: int):
+def api_lead(request: Request, lead_id: int):
+    emp_id = empresa_de(request)
     with sesion() as s:
         l = s.get(Lead, lead_id)
-        if not l:
+        if not l or l.empresa_id != emp_id:
             return JSONResponse({"error": "no existe"}, status_code=404)
         intentos = s.exec(select(Intento).where(Intento.lead_id == lead_id).order_by(Intento.id)).all()
         calis = s.exec(select(Calificacion).where(Calificacion.lead_id == lead_id)).all()
@@ -285,55 +395,168 @@ def api_lead(lead_id: int):
 
 
 @app.post("/api/lead/{lead_id}/revision")
-def api_lead_revision(lead_id: int, entrada: RevisionEntrada):
-    lead_revision(lead_id, entrada.decision)
-    return {"ok": True, "lead_id": lead_id, "decision": entrada.decision}
+def api_lead_revision(request: Request, lead_id: int, entrada: RevisionEntrada):
+    ok = _revisar(lead_id, entrada.decision, empresa_de(request))
+    return {"ok": ok, "lead_id": lead_id, "decision": entrada.decision}
+
+
+@app.get("/api/lead/{lead_id}/mensaje")
+def api_lead_mensaje(request: Request, lead_id: int, canal: str = "correo"):
+    """Vista previa del primer mensaje que redactaría el agente para este lead."""
+    emp_id = empresa_de(request)
+    with sesion() as s:
+        l = s.get(Lead, lead_id)
+        if not l or l.empresa_id != emp_id:
+            return JSONResponse({"error": "no existe"}, status_code=404)
+    texto, info = agente.redactar_mensaje(l, canal, empresas.icp_de(emp_id))
+    return {"lead_id": lead_id, "canal": canal, "texto": texto, **info}
+
+
+@app.post("/api/respuesta")
+def api_respuesta(request: Request, entrada: RespuestaEntrada):
+    """Registra una respuesta libre (WhatsApp, llamada manual): el agente la clasifica."""
+    emp_id = empresa_de(request)
+    with sesion() as s:
+        l = s.get(Lead, entrada.lead_id)
+        if not l or l.empresa_id != emp_id:
+            return JSONResponse({"error": "no existe"}, status_code=404)
+    return pipeline.registrar_respuesta_texto(entrada.lead_id, entrada.texto, entrada.canal)
 
 
 @app.post("/api/lote")
-def api_lote(entrada: LoteEntrada):
-    r = pipeline.preparar_lote(n=entrada.n, modo=entrada.modo, reparto=entrada.reparto, usuario=entrada.usuario, motivo_override=entrada.motivo_override)
+def api_lote(request: Request, entrada: LoteEntrada):
+    emp_id = empresa_de(request)
+    quien = usuario_de(request).get("email") if cognito.activo else entrada.usuario
+    r = pipeline.preparar_lote(n=entrada.n, modo=entrada.modo, reparto=entrada.reparto, usuario=quien or entrada.usuario,
+                               motivo_override=entrada.motivo_override, empresa_id=emp_id)
     if "lote_id" in r:
         r["envio"] = pipeline.ejecutar_lote(r["lote_id"])
     return r
 
 
 @app.get("/api/lotes")
-def api_lotes(limite: int = 50):
+def api_lotes(request: Request, limite: int = 50):
     with sesion() as s:
-        lotes = s.exec(select(Lote).order_by(Lote.id.desc()).limit(limite)).all()
+        lotes = s.exec(select(Lote).where(Lote.empresa_id == empresa_de(request)).order_by(Lote.id.desc()).limit(limite)).all()
     return [l.model_dump() for l in lotes]
 
 
 @app.get("/api/bitacora")
-def api_bitacora(limite: int = 100, tipo: str = ""):
+def api_bitacora(request: Request, limite: int = 100, tipo: str = ""):
     with sesion() as s:
-        st = select(Bitacora).order_by(Bitacora.id.desc()).limit(limite)
+        st = select(Bitacora).where(Bitacora.empresa_id == empresa_de(request)).order_by(Bitacora.id.desc()).limit(limite)
         if tipo:
             st = st.where(Bitacora.tipo == tipo)
         return [b.model_dump() for b in s.exec(st).all()]
 
 
 @app.get("/api/icp")
-def api_icp():
-    return ICP.cargar().__dict__
+def api_icp(request: Request):
+    emp = empresas.obtener(empresa_de(request))
+    return {"icp": empresas.icp_de(empresa_de(request)).__dict__, "texto": emp.icp_texto if emp else ""}
 
 
 @app.put("/api/icp")
-def api_icp_guardar(entrada: dict):
+def api_icp_guardar(request: Request, entrada: dict):
     icp = ICP(**{k: v for k, v in entrada.items() if k in ICP.__dataclass_fields__})
-    icp.guardar()
+    empresas.guardar_icp(empresa_de(request), icp, entrada.get("texto"))
     return icp.__dict__
 
 
+@app.post("/api/icp/interpretar")
+def api_icp_interpretar(request: Request, entrada: TextoEntrada):
+    """El agente convierte el texto de la empresa en criterios; se guarda como ICP de la empresa."""
+    icp, info = agente.interpretar_icp(entrada.texto)
+    empresas.guardar_icp(empresa_de(request), icp, entrada.texto)
+    return {"icp": icp.__dict__, **info}
+
+
+@app.post("/api/puntuar")
+def api_puntuar(request: Request, todos: bool = False):
+    """Puntúa el ICP de los leads pendientes (o todos) con el ICP actual de la empresa."""
+    from ..icp import puntuar
+    emp_id = empresa_de(request)
+    icp = empresas.icp_de(emp_id)
+    with sesion() as s:
+        st = select(Lead).where(Lead.empresa_id == emp_id, Lead.duplicado_de.is_(None))
+        if not todos:
+            st = st.where(Lead.icp_estado == "pendiente")
+        leads = list(s.exec(st))
+        r = puntuar(leads, icp)
+        for l in leads:
+            s.add(l)
+        s.commit()
+    return {"puntuados": len(leads), **r}
+
+
 @app.post("/api/sincronizar")
-def api_sincronizar():
-    return {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(), "dapta": pipeline.sincronizar_dapta()}
+def api_sincronizar(request: Request):
+    emp_id = empresa_de(request)
+    return {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(emp_id), "dapta": pipeline.sincronizar_dapta(empresa_id=emp_id)}
 
 
 @app.post("/api/simular")
-def api_simular():
-    return pipeline.simular_resultados()
+def api_simular(request: Request):
+    return pipeline.simular_resultados(empresa_id=empresa_de(request))
+
+
+# ---------------- Empresa, usuarios y notificaciones ----------------
+
+@app.get("/api/empresa")
+def api_empresa(request: Request):
+    e = empresas.obtener(empresa_de(request))
+    return empresas.publico(e) if e else JSONResponse({"error": "no existe"}, status_code=404)
+
+
+@app.put("/api/empresa")
+def api_empresa_cambiar(request: Request, entrada: EmpresaCambio):
+    e = empresas.actualizar(empresa_de(request), **entrada.model_dump(exclude_none=True))
+    return empresas.publico(e) if e else JSONResponse({"error": "no existe"}, status_code=404)
+
+
+@app.get("/api/empresas")
+def api_empresas(request: Request):
+    if not es_admin(request):
+        return JSONResponse({"error": "solo administradores"}, status_code=403)
+    return [empresas.publico(e) for e in empresas.listar()]
+
+
+@app.post("/api/empresas")
+def api_empresa_crear(request: Request, entrada: EmpresaEntrada):
+    if not es_admin(request):
+        return JSONResponse({"error": "solo administradores"}, status_code=403)
+    icp, info = agente.interpretar_icp(entrada.icp_texto) if entrada.icp_texto else (ICP(), {"motor": "defecto"})
+    e = empresas.crear(entrada.nombre, entrada.correo_notificaciones, entrada.icp_texto, icp.__dict__)
+    return {**empresas.publico(e), "icp_motor": info.get("motor")}
+
+
+@app.post("/api/usuarios")
+def api_usuario_crear(request: Request, entrada: UsuarioEntrada):
+    """Crea un usuario en Cognito (solo admin) con su empresa y rol. Cognito le envía la contraseña temporal por correo."""
+    if not es_admin(request):
+        return JSONResponse({"error": "solo administradores"}, status_code=403)
+    if not cognito.activo:
+        return JSONResponse({"error": "Cognito no está configurado"}, status_code=400)
+    import boto3
+    c = boto3.client("cognito-idp", region_name=config.aws_region)
+    try:
+        c.admin_create_user(UserPoolId=cognito.pool_id, Username=entrada.email,
+                            UserAttributes=[{"Name": "email", "Value": entrada.email}, {"Name": "email_verified", "Value": "true"},
+                                            {"Name": "custom:empresa_id", "Value": str(entrada.empresa_id)}, {"Name": "custom:rol", "Value": entrada.rol}],
+                            DesiredDeliveryMediums=["EMAIL"])
+        return {"ok": True, "email": entrada.email, "empresa_id": entrada.empresa_id, "rol": entrada.rol}
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)[:300]}, status_code=400)
+
+
+@app.get("/api/notificaciones")
+def api_notificaciones(request: Request, no_leidas: bool = False, limite: int = 50):
+    return [n.model_dump() for n in notificaciones.listar(empresa_de(request), no_leidas, limite)]
+
+
+@app.post("/api/notificaciones/leer")
+def api_notificaciones_leer(request: Request, id: int | None = None):
+    return {"marcadas": notificaciones.marcar_leida(empresa_de(request), id)}
 
 
 # ---------------- Archivos: S3 con URL prefirmadas (o local sin bucket) ----------------
@@ -353,14 +576,14 @@ async def api_subir_local(clave: str = Form(...), archivo: UploadFile = File(...
 
 
 @app.post("/api/archivos/procesar")
-def api_procesar(entrada: ProcesarEntrada):
-    """Procesa un archivo ya subido: leads_csv (lista propia de la pyme) o rne (lista de exclusión de la CRC)."""
+def api_procesar(request: Request, entrada: ProcesarEntrada):
+    """Procesa un archivo ya subido: leads_csv (lista propia de la empresa) o rne (lista de exclusión de la CRC)."""
     alm = storage.Almacen()
     if not alm.existe(entrada.clave):
         return JSONResponse({"error": "la clave no existe en el almacén"}, status_code=404)
     datos = alm.leer(entrada.clave)
     if entrada.tipo == "leads_csv":
-        return ingerir_csv(datos, entrada.clave.rsplit("/", 1)[-1], pais=entrada.pais)
+        return ingerir_csv(datos, entrada.clave.rsplit("/", 1)[-1], pais=entrada.pais, empresa_id=empresa_de(request))
     if entrada.tipo == "rne":
         import tempfile
         with tempfile.NamedTemporaryFile("wb", suffix=".csv", delete=False) as f:
@@ -371,10 +594,10 @@ def api_procesar(entrada: ProcesarEntrada):
 
 
 @app.get("/api/exportar/{tipo}")
-def api_exportar(tipo: str):
+def api_exportar(request: Request, tipo: str):
     """Genera el CSV (leads | intentos | bitacora), lo guarda y devuelve la URL de descarga con vencimiento."""
     try:
-        return storage.exportar(tipo)
+        return storage.exportar(tipo, empresa_de(request))
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -388,11 +611,3 @@ def api_archivo_local(clave: str):
     if not ruta.exists():
         return JSONResponse({"error": "no existe"}, status_code=404)
     return FileResponse(str(ruta), filename=ruta.name)
-
-
-@app.get("/api/estado")
-def api_estado():
-    with sesion() as s:
-        n = s.exec(select(func.count(Lead.id))).one()
-    ok, razon = ventana_permitida()
-    return {"leads": n, "ventana_ok": ok, "razon": razon, "ahora": ahora_local().isoformat()}

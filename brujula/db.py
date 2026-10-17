@@ -22,6 +22,9 @@ def crear_tablas() -> None:
     from . import models  # noqa: F401  (registra los modelos)
 
     SQLModel.metadata.create_all(engine)
+    from .empresas import asegurar_demo
+
+    asegurar_demo()
 
 
 @contextmanager

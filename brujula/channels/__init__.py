@@ -9,11 +9,12 @@ from .whatsapp import CanalWhatsApp
 CANALES: dict[str, type[Canal]] = {c.clave: c for c in (CanalCorreo, CanalVozDapta, CanalWhatsApp)}
 
 
-def canal(clave: str) -> Canal:
+def canal(clave: str, empresa_id: int = 1) -> Canal:
     try:
-        return CANALES[clave]()
+        cls = CANALES[clave]
     except KeyError:
         raise SystemExit(f"Canal desconocido: {clave}. Disponibles: {', '.join(CANALES)}")
+    return cls(empresa_id=empresa_id) if clave == "voz" else cls()
 
 
 __all__ = ["CANALES", "Canal", "Resultado", "canal"]

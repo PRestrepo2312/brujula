@@ -71,6 +71,8 @@ class Config:
     cognito_client_secret: str = field(default_factory=lambda: _env("COGNITO_CLIENT_SECRET"))
     cognito_domain: str = field(default_factory=lambda: _env("COGNITO_DOMAIN"))           # p. ej. brujula.auth.us-east-1.amazoncognito.com
     session_secret: str = field(default_factory=lambda: _env("SESSION_SECRET") or os.urandom(32).hex())
+    bedrock_model: str = field(default_factory=lambda: _env("BEDROCK_MODEL", "us.anthropic.claude-haiku-5-5"))
+    bedrock_habilitado: bool = field(default_factory=lambda: _env("BEDROCK", "1") not in ("0", "false", "no"))
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL", "http://localhost:8000"))
     socrata_app_token: str = field(default_factory=lambda: _env("SOCRATA_APP_TOKEN"))
     denue_token: str = field(default_factory=lambda: _env("DENUE_TOKEN"))

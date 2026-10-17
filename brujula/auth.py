@@ -69,7 +69,9 @@ def _firmador() -> URLSafeTimedSerializer:
 
 
 def crear_cookie(claims: dict) -> str:
-    return _firmador().dumps({"email": claims.get("email") or claims.get("username") or claims.get("sub"), "sub": claims.get("sub"), "t": int(time.time())})
+    emp, rol = _empresa_y_rol(claims)
+    return _firmador().dumps({"email": claims.get("email") or claims.get("username") or claims.get("sub"), "sub": claims.get("sub"),
+                              "empresa_id": emp, "rol": rol, "t": int(time.time())})
 
 
 def leer_cookie(valor: str | None) -> dict | None:
@@ -96,18 +98,30 @@ def es_publica(ruta: str) -> bool:
     return ruta == "/" and False or any(ruta.startswith(p) for p in PUBLICAS)
 
 
+def _empresa_y_rol(claims: dict) -> tuple[int, str]:
+    try:
+        emp = int(claims.get("custom:empresa_id") or claims.get("empresa_id") or 1)
+    except (TypeError, ValueError):
+        emp = 1
+    rol = claims.get("custom:rol") or claims.get("rol") or "usuario"
+    return emp, rol
+
+
 def usuario_desde(request, cognito: Cognito) -> dict | None:
-    """Usuario autenticado: Bearer JWT (API) o cookie de sesión (tablero). Modo abierto si Cognito no está configurado."""
+    """Usuario autenticado: Bearer JWT (API) o cookie de sesión (tablero). Modo abierto si Cognito no está configurado.
+
+    Trae empresa_id y rol (admin ve todas las empresas; usuario solo la suya)."""
     if not cognito.activo:
-        return {"email": "local", "modo": "abierto"}
+        return {"email": "local", "modo": "abierto", "empresa_id": 1, "rol": "admin"}
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         try:
             c = cognito.verificar(auth[7:].strip())
-            return {"email": c.get("email") or c.get("username") or c.get("sub"), "sub": c.get("sub"), "modo": "jwt"}
+            emp, rol = _empresa_y_rol(c)
+            return {"email": c.get("email") or c.get("username") or c.get("sub"), "sub": c.get("sub"), "modo": "jwt", "empresa_id": emp, "rol": rol}
         except Exception:  # noqa: BLE001
             return None
     sesion = leer_cookie(request.cookies.get(COOKIE))
     if sesion:
-        return {**sesion, "modo": "cookie"}
+        return {"empresa_id": 1, "rol": "usuario", **sesion, "modo": "cookie"}
     return None

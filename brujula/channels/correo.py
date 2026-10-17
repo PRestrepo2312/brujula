@@ -27,6 +27,10 @@ class CanalCorreo(Canal):
         base = config.public_base_url.rstrip("/")
         urls = {v: f"{base}/r/{token}?v={v}" for v in ("si", "no", "baja")}
         texto, html = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"])
+        redactado = (intento.detalle or {}).get("texto")
+        if redactado and "{url_si}" in redactado:
+            texto = redactado.replace("{url_si}", urls["si"]).replace("{url_no}", urls["no"]).replace("{url_baja}", urls["baja"])
+            html = "<p>" + texto.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
         asunto = asunto_correo(lead)
         detalle = {"token": token, "asunto": asunto}
         if not self.real:

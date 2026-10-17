@@ -47,11 +47,11 @@ def _fusionar(principal: Lead, otro: Lead) -> None:
     principal.fuentes_todas = fuentes
 
 
-def deduplicar(ids: Iterable[int] | None = None) -> dict:
-    """Recorre los leads (por id; todos los principales si no se pasan) y marca duplicados. Devuelve cifras."""
+def deduplicar(ids: Iterable[int] | None = None, empresa_id: int = 1) -> dict:
+    """Recorre los leads de una empresa (por id; todos los principales si no se pasan) y marca duplicados. Devuelve cifras."""
     with sesion() as s:
         # Índice con lo que ya está en la base (principales), en orden de llegada: el más antiguo manda.
-        existentes = s.exec(select(Lead).where(Lead.duplicado_de.is_(None)).order_by(Lead.id)).all()
+        existentes = s.exec(select(Lead).where(Lead.duplicado_de.is_(None), Lead.empresa_id == empresa_id).order_by(Lead.id)).all()
         quiero = set(ids) if ids is not None else {e.id for e in existentes}
         candidatos = [e for e in existentes if e.id in quiero]
         # El índice solo tiene leads ya "asentados": los principales que no están en revisión. Los candidatos entran al

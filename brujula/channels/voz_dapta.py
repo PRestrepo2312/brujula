@@ -31,18 +31,21 @@ class CanalVozDapta(Canal):
     clave = "voz"
     nombre = "Voz (agente Dapta)"
 
-    def __init__(self):
-        self.ids = ids_dapta()
+    def __init__(self, empresa_id: int = 1):
+        from ..empresas import dapta_de
+        d = dapta_de(empresa_id)
+        self.api_key = d.get("api_key", "")
+        self.ids = {"agent_id": d.get("agent_id", ""), "sequence_id": d.get("sequence_id", "")}
         self._mcp: DaptaMCP | None = None
 
     @property
     def real(self) -> bool:
-        return bool(config.dapta_api_key and self.ids["sequence_id"])
+        return bool(self.api_key and self.ids["sequence_id"])
 
     @property
     def mcp(self) -> DaptaMCP:
         if self._mcp is None:
-            self._mcp = DaptaMCP()
+            self._mcp = DaptaMCP(api_key=self.api_key)
         return self._mcp
 
     def enviar(self, lead: Lead, intento: Intento) -> Resultado:

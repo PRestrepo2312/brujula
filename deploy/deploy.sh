@@ -19,7 +19,8 @@ ECR="$CUENTA.dkr.ecr.$REGION.amazonaws.com"
 aws ecr describe-repositories --repository-names "$REPO" --profile "$PERFIL" --region "$REGION" >/dev/null 2>&1 \
   || aws ecr create-repository --repository-name "$REPO" --profile "$PERFIL" --region "$REGION" >/dev/null
 aws ecr get-login-password --profile "$PERFIL" --region "$REGION" | docker login --username AWS --password-stdin "$ECR"
-docker build --platform linux/amd64 -t "$REPO:$TAG" .
+# Lambda solo acepta manifiestos Docker v2 (sin attestations OCI de BuildKit): una sola plataforma, sin provenance ni SBOM.
+docker build --platform linux/amd64 --provenance=false --sbom=false -t "$REPO:$TAG" .
 docker tag "$REPO:$TAG" "$ECR/$REPO:$TAG"
 for intento in 1 2 3 4; do
   if docker push "$ECR/$REPO:$TAG"; then break; fi

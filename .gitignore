@@ -10,3 +10,4 @@ node_modules/
 data/
 !data/.gitkeep
 .pytest_cache/
+deploy/deploy.log

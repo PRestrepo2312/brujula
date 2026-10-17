@@ -65,21 +65,23 @@ def normal(valor: str) -> str:
     return (valor or "").strip().lower()
 
 
-def esta_excluido(*valores: str | None) -> bool:
+def esta_excluido(*valores: str | None, empresa_id: int = 1) -> bool:
+    """Excluido si está en el RNE (global, empresa 0) o en las bajas de la empresa."""
     vals = [normal(v) for v in valores if v]
     if not vals:
         return False
     with sesion() as s:
-        return s.exec(select(Exclusion).where(Exclusion.valor.in_(vals))).first() is not None
+        return s.exec(select(Exclusion).where(Exclusion.valor.in_(vals), Exclusion.empresa_id.in_([0, empresa_id]))).first() is not None
 
 
-def registrar_exclusion(valor: str, origen: str = "baja") -> None:
+def registrar_exclusion(valor: str, origen: str = "baja", empresa_id: int = 1) -> None:
     v = normal(valor)
     if not v:
         return
+    emp = 0 if origen == "rne" else empresa_id
     with sesion() as s:
-        if not s.exec(select(Exclusion).where(Exclusion.valor == v)).first():
-            s.add(Exclusion(valor=v, origen=origen))
+        if not s.exec(select(Exclusion).where(Exclusion.valor == v, Exclusion.empresa_id == emp)).first():
+            s.add(Exclusion(empresa_id=emp, valor=v, origen=origen))
             s.commit()
 
 
@@ -107,14 +109,14 @@ def verificar_lead(lead: Lead, canal: str) -> tuple[bool, str]:
         return False, "el teléfono no es celular"
     if canal == "correo" and not lead.correo:
         return False, "sin correo"
-    if esta_excluido(lead.telefono, lead.correo):
+    if esta_excluido(lead.telefono, lead.correo, empresa_id=lead.empresa_id):
         return False, "en lista de exclusión (RNE o baja)"
     if lead.estado in ("baja", "descartado"):
         return False, f"estado {lead.estado}"
     return True, "ok"
 
 
-def anotar(tipo: str, mensaje: str, **datos) -> None:
+def anotar(tipo: str, mensaje: str, empresa_id: int = 1, **datos) -> None:
     with sesion() as s:
-        s.add(Bitacora(tipo=tipo, mensaje=mensaje, datos=datos))
+        s.add(Bitacora(empresa_id=empresa_id, tipo=tipo, mensaje=mensaje, datos=datos))
         s.commit()

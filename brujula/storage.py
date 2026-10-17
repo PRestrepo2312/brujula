@@ -80,48 +80,48 @@ class Almacen:
         return (LOCAL / clave).exists()
 
 
-def exportar_leads_csv() -> bytes:
+def exportar_leads_csv(empresa_id: int = 1) -> bytes:
     """Todos los leads principales con su ICP, canales, estado y costo de encontrar."""
     salida = io.StringIO()
     w = csv.writer(salida)
     w.writerow(["id", "pais", "identificacion", "razon_social", "sector", "subsector", "ciudad", "telefono", "telefono_tipo", "correo", "sitio_web",
                 "canales", "fuente", "fuentes_todas", "icp_score", "icp_estado", "estado", "costo_encontrar_usd", "senales"])
     with sesion() as s:
-        for l in s.exec(select(Lead).where(Lead.duplicado_de.is_(None)).order_by(Lead.id)):
+        for l in s.exec(select(Lead).where(Lead.duplicado_de.is_(None), Lead.empresa_id == empresa_id).order_by(Lead.id)):
             w.writerow([l.id, l.pais, l.identificacion or "", l.razon_social, l.sector, l.subsector, l.ciudad, l.telefono or "", l.telefono_tipo,
                         l.correo or "", l.sitio_web or "", "|".join(l.canales or []), l.fuente_clave, "|".join(l.fuentes_todas or []),
                         l.icp_score if l.icp_score is not None else "", l.icp_estado, l.estado, l.costo_encontrar_usd, "|".join((l.senales or {}).keys())])
     return salida.getvalue().encode("utf-8-sig")
 
 
-def exportar_intentos_csv() -> bytes:
+def exportar_intentos_csv(empresa_id: int = 1) -> bytes:
     salida = io.StringIO()
     w = csv.writer(salida)
     w.writerow(["id", "lead_id", "lote_id", "canal", "proveedor", "estado", "clasificacion", "costo_usd", "duracion_seg", "fuera_ventana", "enviado_en", "respondido_en", "ref_externa"])
     with sesion() as s:
-        for it in s.exec(select(Intento).order_by(Intento.id)):
+        for it in s.exec(select(Intento).where(Intento.empresa_id == empresa_id).order_by(Intento.id)):
             w.writerow([it.id, it.lead_id, it.lote_id or "", it.canal, it.proveedor, it.estado, it.clasificacion, it.costo_usd, it.duracion_seg,
                         it.fuera_ventana, it.enviado_en.isoformat() if it.enviado_en else "", it.respondido_en.isoformat() if it.respondido_en else "", it.ref_externa or ""])
     return salida.getvalue().encode("utf-8-sig")
 
 
-def exportar_bitacora_csv() -> bytes:
+def exportar_bitacora_csv(empresa_id: int = 1) -> bytes:
     salida = io.StringIO()
     w = csv.writer(salida)
     w.writerow(["id", "creado_en", "tipo", "mensaje", "datos"])
     with sesion() as s:
-        for b in s.exec(select(Bitacora).order_by(Bitacora.id)):
+        for b in s.exec(select(Bitacora).where(Bitacora.empresa_id == empresa_id).order_by(Bitacora.id)):
             w.writerow([b.id, b.creado_en.isoformat(), b.tipo, b.mensaje, b.datos])
     return salida.getvalue().encode("utf-8-sig")
 
 
-def exportar(tipo: str) -> dict:
+def exportar(tipo: str, empresa_id: int = 1) -> dict:
     """Genera el CSV, lo guarda (S3 o local) y devuelve la URL de descarga con vencimiento."""
     generadores = {"leads": exportar_leads_csv, "intentos": exportar_intentos_csv, "bitacora": exportar_bitacora_csv}
     if tipo not in generadores:
         raise ValueError(f"exportación desconocida: {tipo}")
-    datos = generadores[tipo]()
-    clave = f"exportaciones/{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_{tipo}.csv"
+    datos = generadores[tipo](empresa_id)
+    clave = f"exportaciones/empresa-{empresa_id}/{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_{tipo}.csv"
     almacen = Almacen()
     almacen.guardar(clave, datos, "text/csv")
     return {"tipo": tipo, "clave": clave, "bytes": len(datos), "url": almacen.url_descarga(clave), "expira_seg": VENCIMIENTO_SEG if almacen.en_nube else None}

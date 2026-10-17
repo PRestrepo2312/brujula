@@ -33,6 +33,8 @@ Resources:
         PasswordPolicy: {MinimumLength: 12, RequireLowercase: true, RequireNumbers: true, RequireUppercase: true, RequireSymbols: false}
       Schema:
         - {Name: email, Required: true, Mutable: true}
+        - {Name: empresa_id, AttributeDataType: String, Mutable: true, StringAttributeConstraints: {MinLength: "1", MaxLength: "16"}}
+        - {Name: rol, AttributeDataType: String, Mutable: true, StringAttributeConstraints: {MinLength: "1", MaxLength: "16"}}
   Cliente:
     Type: AWS::Cognito::UserPoolClient
     Properties:

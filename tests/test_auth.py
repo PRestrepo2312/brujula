@@ -6,7 +6,8 @@ from brujula.web.app import app
 
 def test_modo_abierto_sin_cognito():
     c = TestClient(app)
-    assert c.get("/api/yo").json() == {"usuario": {"email": "local", "modo": "abierto"}, "login_activo": False}
+    yo = c.get("/api/yo").json()
+    assert yo["login_activo"] is False and yo["admin"] is True and yo["usuario"]["modo"] == "abierto" and yo["empresa_id"] == 1
     assert c.get("/login", follow_redirects=False).status_code == 303
 
 

@@ -42,6 +42,7 @@ def generar(n: int = 50, semilla: int = 30) -> dict:
                     sector=l.sector, ciudad=l.ciudad, departamento=l.departamento, telefono=l.telefono if rnd.random() < 0.6 else None,
                     telefono_tipo=l.telefono_tipo, correo=l.correo if rnd.random() < 0.5 else None, dominio=l.dominio if rnd.random() < 0.5 else None,
                     canales=l.canales, fuente_clave="prueba", fuente_registro=f"trampa-{l.id}", fuentes_todas=["prueba"], crudo={"trampa_de": l.id},
+                    empresa_id=l.empresa_id,
                 )
                 trampa.nombre_norm = nombre_normalizado(trampa.razon_social)
                 s.add(trampa)
@@ -51,7 +52,7 @@ def generar(n: int = 50, semilla: int = 30) -> dict:
         ruta = RAIZ / "data" / "prueba_50.json"
         ruta.parent.mkdir(parents=True, exist_ok=True)
         ruta.write_text(json.dumps({"empresas": muestra, "trampas": ids_trampa}, ensure_ascii=False, indent=1), encoding="utf-8")
-    r = deduplicar([t for t, _ in ids_trampa])
+    r = deduplicar([t for t, _ in ids_trampa], empresa_id=base[0].empresa_id if base else 1)
     with sesion() as s:
         aciertos = 0
         for t, orig in ids_trampa:
