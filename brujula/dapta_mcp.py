@@ -125,6 +125,16 @@ class DaptaMCP:
                 break
         return {"calls": filas}
 
+    def conversaciones(self, text_agent_id: str, limit: int = 50) -> dict:
+        """Conversaciones (WhatsApp, chat) del agente de texto, de la más reciente a la más antigua."""
+        r = self.tool("list_conversations", agent_id=text_agent_id, limit=min(limit, 50))
+        return r if isinstance(r, dict) else {"conversations": []}
+
+    def conversacion(self, conversation_id: str) -> dict:
+        """Una conversación completa: mensajes, estado, resumen (créditos, reserva)."""
+        r = self.tool("get_conversation", conversation_id=conversation_id)
+        return r if isinstance(r, dict) else {}
+
     def llamada(self, call_id: str) -> dict:
         return self.tool("get_call", call_id=call_id)
 

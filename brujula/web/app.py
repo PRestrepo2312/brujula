@@ -324,6 +324,7 @@ async def webhook_dapta(request: Request):
         s.commit()
     try:
         pipeline.sincronizar_dapta(limite=50)
+        pipeline.sincronizar_chats()
     except Exception as e:  # noqa: BLE001
         with sesion() as s:
             s.add(Bitacora(tipo="error", mensaje=f"sincronizar tras webhook: {e}"[:400]))
@@ -381,7 +382,8 @@ def cron_lote(request: Request, n: int | None = None):
 def cron_sincronizar(request: Request):
     if config.cron_key and request.headers.get("x-cron-key") != config.cron_key:
         return JSONResponse({"error": "clave de cron inválida"}, status_code=401)
-    return {e.id: {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(e.id), "dapta": pipeline.sincronizar_dapta(empresa_id=e.id)} for e in empresas.listar()}
+    return {e.id: {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(e.id), "dapta": pipeline.sincronizar_dapta(empresa_id=e.id),
+                   "whatsapp": pipeline.sincronizar_chats(empresa_id=e.id)} for e in empresas.listar()}
 
 
 @app.get("/healthz")
@@ -555,7 +557,8 @@ def api_puntuar(request: Request, todos: bool = False):
 @app.post("/api/sincronizar")
 def api_sincronizar(request: Request):
     emp_id = empresa_de(request)
-    return {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(emp_id), "dapta": pipeline.sincronizar_dapta(empresa_id=emp_id)}
+    return {"calificador": pipeline.pasar_a_dapta_los_que_respondieron(emp_id), "dapta": pipeline.sincronizar_dapta(empresa_id=emp_id),
+            "whatsapp": pipeline.sincronizar_chats(empresa_id=emp_id)}
 
 
 @app.post("/api/simular")

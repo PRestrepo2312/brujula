@@ -44,6 +44,10 @@ Parameters:
   CorsOrigins:
     Type: String
     Default: "*"
+  DaptaTextAgentId:
+    Type: String
+    Default: ""
+    Description: Agente de texto (WhatsApp) de Dapta cuyas conversaciones se sincronizan.
   DenueToken:
     Type: String
     Default: ""
@@ -119,7 +123,7 @@ Resources:
     Properties:
       Name: brujula/env
       SecretString: !Sub |
-        {"DAPTA_API_KEY":"${DaptaApiKey}","DAPTA_AGENT_ID":"${DaptaAgentId}","DAPTA_SEQUENCE_ID":"${DaptaSequenceId}",
+        {"DAPTA_API_KEY":"${DaptaApiKey}","DAPTA_AGENT_ID":"${DaptaAgentId}","DAPTA_SEQUENCE_ID":"${DaptaSequenceId}","DAPTA_TEXT_AGENT_ID":"${DaptaTextAgentId}",
          "OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}","DENUE_TOKEN":"${DenueToken}",
          "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
 

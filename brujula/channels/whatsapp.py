@@ -1,4 +1,5 @@
-"""Canal WhatsApp: solo si hay una línea con plantilla aprobada (Meta o el sandbox de Dapta). Sin eso, simula y lo dice."""
+"""Canal WhatsApp. El primer mensaje saliente exige una plantilla aprobada por Meta en la línea conectada a Dapta: hasta tenerla, se simula y
+lo dice. Las conversaciones entrantes sí son reales: las atiende el agente de texto de Dapta y pipeline.sincronizar_chats las trae como respuestas."""
 from __future__ import annotations
 
 import secrets
@@ -20,4 +21,4 @@ class CanalWhatsApp(Canal):
     def enviar(self, lead: Lead, intento: Intento) -> Resultado:
         texto = whatsapp_texto(lead, idioma_de(lead, intento.empresa_id))
         return Resultado(estado="enviado", costo_usd=config.tarifas.whatsapp_conversacion_co, ref_externa=f"sim_{secrets.token_hex(6)}",
-                         proveedor="simulado", mensaje=texto, detalle={"nota": "sin línea de WhatsApp aprobada: envío simulado"})
+                         proveedor="simulado", mensaje=texto, detalle={"nota": "sin plantilla de WhatsApp aprobada por Meta: envío simulado"})

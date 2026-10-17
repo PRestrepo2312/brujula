@@ -404,6 +404,86 @@ def sincronizar_dapta(limite: int = 200, empresa_id: int = 1) -> dict:
     return {"llamadas_leidas": len(filas), "intentos_actualizados": actualizados, "calificaciones_nuevas": nuevas_cali}
 
 
+def _lead_whatsapp_entrante(s, empresa_id: int, ident: str, digitos: str) -> Lead:
+    """El lead de una conversación de WhatsApp: por teléfono si Dapta deja ver los dígitos; si no, un lead 'WhatsApp entrante' por identificador."""
+    from .models import Fuente
+    if digitos:
+        for l in s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.duplicado_de.is_(None), Lead.telefono.is_not(None))).all():
+            tel = "".join(ch for ch in (l.telefono or "") if ch.isdigit())
+            if len(tel) >= 10 and tel[-10:] in digitos:
+                return l
+    previo = s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.fuente_clave == "whatsapp", Lead.fuente_registro == ident)).first()
+    if previo:
+        return previo
+    if not s.exec(select(Fuente).where(Fuente.clave == "whatsapp")).first():
+        s.add(Fuente(clave="whatsapp", nombre="WhatsApp entrante (agente de texto de Dapta)", pais="CO", tipo="canal", licencia="propia", contacta=True))
+    l = Lead(empresa_id=empresa_id, razon_social=f"WHATSAPP ENTRANTE {ident[-6:]}", pais="CO", fuente_clave="whatsapp", fuente_registro=ident,
+             fuentes_todas=["whatsapp"], canales=["whatsapp"], icp_estado="pasa", estado="respondio", senales={"whatsapp_entrante": True},
+             icp_detalle={"motivo": "escribió por WhatsApp; Dapta no expone el número completo"})
+    s.add(l)
+    s.commit()
+    s.refresh(l)
+    return l
+
+
+def sincronizar_chats(empresa_id: int = 1, limite: int = 50, mcp=None) -> dict:
+    """Conversaciones de WhatsApp del agente de texto de Dapta: cada una queda como intento 'whatsapp' contestado, ligada a su lead,
+    con lo que escribió la persona clasificado por el agente (interesado, después, no interesado, baja)."""
+    from .channels.voz_dapta import CanalVozDapta, inicio_llamada
+    agente_texto = config.dapta_text_agent_id
+    if not agente_texto:
+        return {"error": "sin agente de texto de Dapta (DAPTA_TEXT_AGENT_ID)"}
+    if mcp is None:
+        voz = CanalVozDapta(empresa_id=empresa_id)
+        if not voz.api_key:
+            return {"error": "Dapta no configurado (clave)"}
+        mcp = voz.mcp
+    r = mcp.conversaciones(agente_texto, limit=limite)
+    convs = [c for c in (r.get("conversations") or []) if isinstance(c, dict) and c.get("channel_type") != "playground" and c.get("id")]
+    nuevos, actualizados, avisos = 0, 0, []
+    with sesion() as s:
+        for cv in convs:
+            cid = str(cv["id"])
+            detalle = mcp.conversacion(cid)
+            mensajes = [x for x in (detalle.get("messages") or []) if isinstance(x, dict)]
+            del_lead = [str(x.get("content") or "") for x in mensajes if x.get("direction") == "inbound" and x.get("content")]
+            if not del_lead:
+                continue
+            ident = str(cv.get("channel_identifier") or "")
+            digitos = "".join(ch for ch in ident if ch.isdigit())
+            it = s.exec(select(Intento).where(Intento.empresa_id == empresa_id, Intento.canal == "whatsapp", Intento.ref_externa == cid)).first()
+            if it:
+                l = s.get(Lead, it.lead_id)
+            else:
+                l = _lead_whatsapp_entrante(s, empresa_id, ident, digitos)
+                it = Intento(empresa_id=empresa_id, lead_id=l.id, canal="whatsapp", estado="contestado", proveedor="dapta", ref_externa=cid,
+                             enviado_en=inicio_llamada(cv) or datetime.utcnow())
+                nuevos += 1
+            texto = "\n".join(del_lead)
+            clase, info = agente.clasificar_respuesta(texto)
+            resumen = detalle.get("summary") if isinstance(detalle.get("summary"), dict) else {}
+            it.mensaje = texto[-2000:]
+            it.estado = "contestado"
+            it.clasificacion = clase or it.clasificacion
+            it.costo_usd = round(float(resumen.get("credits_total") or 0) / 1000.0, 4)      # créditos de Dapta: 1000 = USD 1
+            it.detalle = {**(it.detalle or {}), "conversation_id": cid, "canal_dapta": cv.get("channel_type"), "mensajes": len(mensajes),
+                          "clasificacion": info, "ultimo": cv.get("last_message_content"), "reservo": bool(resumen.get("booked"))}
+            s.add(it)
+            if clase == "baja":
+                l.estado = "baja"
+                if l.telefono:
+                    registrar_exclusion(l.telefono, "baja", empresa_id)
+            elif l.estado in ("nuevo", "listo", "contactado"):
+                l.estado = "respondio"
+                avisos.append(("respondio", f"{l.razon_social.title()} escribió por WhatsApp ({clase})", l.id))
+            s.add(l)
+            actualizados += 1
+        s.commit()
+    for tipo, msg, lid in avisos:
+        notificar(empresa_id, tipo, msg, lid)
+    return {"conversaciones": len(convs), "nuevas": nuevos, "actualizadas": actualizados}
+
+
 def simular_resultados(semilla: int = 7, empresa_id: int = 1) -> dict:
     """Solo para demos sin credenciales: inventa respuestas y calificaciones plausibles sobre los intentos simulados."""
     import random

@@ -49,6 +49,10 @@ Con `MODO_PRUEBA=1` (valor con el que se despliega) todo el ciclo corre con los 
 
 El override de horario por usuario (Ley 2300) también abre el horario de la secuencia de Dapta: al enviar un lote con override que lleve llamadas, `ejecutar_lote` amplía el día de hoy en la secuencia (06:00 AM a 11:59 PM, hora Bogotá) y lo anota en la bitácora (`override_dapta`, con usuario, motivo y hora de vencimiento); dos horas después, la sincronización restaura el horario legal (`override_dapta_cierre`).
 
+## WhatsApp
+
+La línea de WhatsApp Business (Meta) está conectada a Dapta y asignada al agente de texto "Brújula · chat" (`DAPTA_TEXT_AGENT_ID`), que atiende en español con el mismo guion de calificación que el de voz. Lo **entrante es real**: `pipeline.sincronizar_chats` (cada 15 minutos, en "Sincronizar con Dapta" y tras el webhook post-conversación) lee las conversaciones del agente, las liga al lead por teléfono cuando Dapta deja ver los dígitos del identificador y, si no, a un lead "WhatsApp entrante", clasifica lo que escribió la persona (interesado, después, no interesado, baja) y guarda el costo en créditos. El **primer mensaje saliente** por WhatsApp exige una plantilla aprobada por Meta en esa línea; mientras no exista, el canal lo simula y lo dice.
+
 ## Idiomas de los mensajes
 
 Cada fuente tiene un idioma por defecto según su país (Colombia y México en español, Brasil en portugués, Nueva York en inglés) y la empresa puede fijar otro por fuente en Configuración (`config.idiomas`). Las plantillas de correo y WhatsApp existen en los tres idiomas (`brujula/mensajes.py`: textos, señales y botones); con agente de texto, él redacta directamente en el idioma del lead. En el detalle de cada lead se previsualiza el mensaje en el idioma de la fuente o en otro (`GET /api/lead/{id}/mensaje?idioma=pt`). Los correos del sistema (clave temporal, código de recuperación) salen de Cognito con la misma marca, en español (`deploy/cognito.yml`).

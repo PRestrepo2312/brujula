@@ -57,6 +57,7 @@ class Config:
     dapta_mcp_url: str = field(default_factory=lambda: _env("DAPTA_MCP_URL", "https://mcp.dapta.ai/mcp"))
     dapta_agent_id: str = field(default_factory=lambda: _env("DAPTA_AGENT_ID"))
     dapta_sequence_id: str = field(default_factory=lambda: _env("DAPTA_SEQUENCE_ID"))
+    dapta_text_agent_id: str = field(default_factory=lambda: _env("DAPTA_TEXT_AGENT_ID"))   # agente de texto (WhatsApp) de Dapta
     openrouter_api_key: str = field(default_factory=lambda: _env("OPENROUTER_API_KEY"))
     jev_model: str = field(default_factory=lambda: _env("JEV_MODEL", "typesafe/jev-1.14"))
     resend_api_key: str = field(default_factory=lambda: _env("RESEND_API_KEY"))
