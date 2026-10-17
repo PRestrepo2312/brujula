@@ -1,0 +1,165 @@
+Login Succeeded
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 364B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.7s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B 0.0s done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+#5 resolve docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 0.1s done
+#5 DONE 0.1s
+
+#4 [internal] load build context
+#4 transferring context: 4.54kB 0.3s done
+#4 DONE 0.3s
+
+#6 [5/7] COPY brujula ./brujula
+#6 CACHED
+
+#7 [6/7] COPY cli.py icp.json* ./
+#7 CACHED
+
+#8 [2/7] WORKDIR /app
+#8 CACHED
+
+#9 [3/7] COPY requirements.txt .
+#9 CACHED
+
+#10 [4/7] RUN pip install --no-cache-dir -r requirements.txt
+#10 CACHED
+
+#11 [7/7] RUN mkdir -p data
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 exporting manifest sha256:f9811cd526d2c89e6a2c6dedd427a59772b7468fea5d5bb71bc8b7ed21308c20 done
+#12 exporting config sha256:7109bb5746f2947f238d208ddd44bb57db3fc79230319557be57d1053087babc done
+#12 exporting attestation manifest sha256:8029ae7f958552ae9636c0520dfba57e276d76b30bead478a1af19d0f9e83977 0.0s done
+#12 exporting manifest list sha256:fb4f3f187d4479d890230192b1137e047e027973dbce2ab590a2ba20c8cbe36e
+#12 exporting manifest list sha256:fb4f3f187d4479d890230192b1137e047e027973dbce2ab590a2ba20c8cbe36e 0.0s done
+#12 naming to docker.io/library/brujula:202610171150 done
+#12 unpacking to docker.io/library/brujula:202610171150 0.0s done
+#12 DONE 0.2s
+The push refers to repository [161987605837.dkr.ecr.us-east-1.amazonaws.com/brujula]
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+66e8d4a3f222: Waiting
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Waiting
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+6912e23eb445: Waiting
+66e8d4a3f222: Layer already exists
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+7ed02e432862: Layer already exists
+4df5ead77738: Waiting
+6912e23eb445: Layer already exists
+bbc5a1223747: Waiting
+68a329b8986d: Waiting
+3eef3c17160a: Waiting
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+ecc510c1e359: Layer already exists
+75b6a36c64a1: Waiting
+f1cf0fbb9607: Waiting
+68a329b8986d: Layer already exists
+3eef3c17160a: Layer already exists
+4df5ead77738: Waiting
+bc45f91b0960: Waiting
+75b6a36c64a1: Layer already exists
+f1cf0fbb9607: Layer already exists
+bbc5a1223747: Layer already exists
+4df5ead77738: Layer already exists
+bc45f91b0960: Waiting
+bc45f91b0960: Pushed
+202610171150: digest: sha256:fb4f3f187d4479d890230192b1137e047e027973dbce2ab590a2ba20c8cbe36e size: 856
+
+Waiting for changeset to be created..
+Waiting for stack create/update to complete

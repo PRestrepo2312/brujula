@@ -38,16 +38,25 @@ class ICP:
         "otro": "Cualquier otro negocio.",
     })
 
+    @staticmethod
+    def ruta_defecto() -> Path:
+        """ICP_PATH en el entorno (en Lambda solo /tmp es escribible); si no, icp.json junto al proyecto."""
+        import os
+        return Path(os.environ.get("ICP_PATH") or (RAIZ / "icp.json"))
+
     @classmethod
     def cargar(cls, ruta: str | Path | None = None) -> "ICP":
-        ruta = Path(ruta) if ruta else RAIZ / "icp.json"
+        ruta = Path(ruta) if ruta else cls.ruta_defecto()
+        if not ruta.exists() and (RAIZ / "icp.json").exists():
+            ruta = RAIZ / "icp.json"
         if ruta.exists():
             datos = json.loads(ruta.read_text(encoding="utf-8"))
             return cls(**{k: v for k, v in datos.items() if k in cls.__dataclass_fields__})
         return cls()
 
     def guardar(self, ruta: str | Path | None = None) -> Path:
-        ruta = Path(ruta) if ruta else RAIZ / "icp.json"
+        ruta = Path(ruta) if ruta else self.ruta_defecto()
+        ruta.parent.mkdir(parents=True, exist_ok=True)
         ruta.write_text(json.dumps(self.__dict__, ensure_ascii=False, indent=2), encoding="utf-8")
         return ruta
 

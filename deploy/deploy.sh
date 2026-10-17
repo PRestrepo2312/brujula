@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Despliegue de Brújula en AWS: ECR (imagen) + CloudFormation (App Runner, RDS, Secrets Manager, S3, EventBridge).
+# Despliegue de Brújula en AWS: ECR (imagen) + CloudFormation (Lambda con Function URL, RDS, Secrets Manager, S3, EventBridge) + Cognito.
 # Uso: PERFIL=brujula REGION=us-east-1 ./deploy/deploy.sh
 # Lee las claves de .env (DAPTA_API_KEY, OPENROUTER_API_KEY, RESEND_API_KEY, EMAIL_FROM) y pide DB_PASSWORD y CRON_KEY si no están.
 set -euo pipefail
@@ -21,14 +21,19 @@ aws ecr describe-repositories --repository-names "$REPO" --profile "$PERFIL" --r
 aws ecr get-login-password --profile "$PERFIL" --region "$REGION" | docker login --username AWS --password-stdin "$ECR"
 docker build --platform linux/amd64 -t "$REPO:$TAG" .
 docker tag "$REPO:$TAG" "$ECR/$REPO:$TAG"
-docker push "$ECR/$REPO:$TAG"
+for intento in 1 2 3 4; do
+  if docker push "$ECR/$REPO:$TAG"; then break; fi
+  echo "push a ECR falló (intento $intento), reintentando en 15 s"; sleep 15
+  [ "$intento" = 4 ] && exit 1
+done
 
 aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --template-file deploy/cloudformation.yml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
-    DaptaApiKey="${DAPTA_API_KEY:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailFrom="${EMAIL_FROM:-Brújula <hola@example.com>}"
+    DaptaApiKey="${DAPTA_API_KEY:-}" DaptaAgentId="${DAPTA_AGENT_ID:-}" DaptaSequenceId="${DAPTA_SEQUENCE_ID:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailProvider="${EMAIL_PROVIDER:-ses}" EmailFrom="${EMAIL_FROM:-Brujula <hola@example.com>}"
 
 URL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --query "Stacks[0].Outputs[?OutputKey=='Url'].OutputValue" --output text)
+URL="${URL%/}"
 echo "Servicio: $URL"
 
 # Paso 2: Cognito necesita la URL del servicio, y el servicio necesita los ids de Cognito: dos pasos, una vez.
@@ -41,7 +46,7 @@ SESION="${SESSION_SECRET:-$(openssl rand -hex 32)}"
 aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --template-file deploy/cloudformation.yml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
-    DaptaApiKey="${DAPTA_API_KEY:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailFrom="${EMAIL_FROM:-Brújula <hola@example.com>}" \
+    DaptaApiKey="${DAPTA_API_KEY:-}" DaptaAgentId="${DAPTA_AGENT_ID:-}" DaptaSequenceId="${DAPTA_SEQUENCE_ID:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailProvider="${EMAIL_PROVIDER:-ses}" EmailFrom="${EMAIL_FROM:-Brujula <hola@example.com>}" \
     CognitoUserPoolId="$POOL" CognitoClientId="$CLIENTE" CognitoDomain="$DOMINIO" SessionSecret="$SESION" PublicBaseUrl="$URL"
 
 aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --query 'Stacks[0].Outputs' --output table

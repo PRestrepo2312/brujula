@@ -1,0 +1,33 @@
+{
+  "nombre": "Pymes de servicios en Colombia",
+  "descripcion": "Pymes de servicios que reciben clientes por teléfono o WhatsApp y hoy dependen de pauta: clínicas e IPS privadas, colegios y academias, hoteles y agencias de viajes.",
+  "paises": [
+    "CO"
+  ],
+  "sectores": [
+    "salud",
+    "educacion",
+    "turismo"
+  ],
+  "palabras_sector": [],
+  "ciudades": [],
+  "excluir_palabras": [
+    "FUNDACION",
+    "ASOCIACION",
+    "COOPERATIVA",
+    "JUNTA",
+    "ALCALDIA",
+    "GOBERNACION",
+    "MINISTERIO",
+    "UNIVERSIDAD NACIONAL"
+  ],
+  "requiere_canal": true,
+  "empleados_min": null,
+  "empleados_max": null,
+  "segmentos": {
+    "salud": "Clínica, IPS, laboratorio, consultorio odontológico o centro médico privado que agenda pacientes.",
+    "educacion": "Colegio, academia, instituto o centro de formación privado que matricula estudiantes.",
+    "turismo": "Hotel, hostal, agencia de viajes, operador turístico o restaurante que recibe reservas.",
+    "otro": "Cualquier otro negocio."
+  }
+}

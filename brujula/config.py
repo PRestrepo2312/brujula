@@ -11,6 +11,24 @@ RAIZ = Path(__file__).resolve().parents[1]
 load_dotenv(RAIZ / ".env")
 
 
+def _cargar_secreto_aws() -> None:
+    """En la nube las claves viven en Secrets Manager: SECRET_ARN apunta a un JSON {VARIABLE: valor}."""
+    arn = os.environ.get("SECRET_ARN", "").strip()
+    if not arn:
+        return
+    import json
+
+    import boto3
+
+    texto = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1")).get_secret_value(SecretId=arn)["SecretString"]
+    for k, v in json.loads(texto).items():
+        if v not in (None, ""):
+            os.environ.setdefault(k, str(v))
+
+
+_cargar_secreto_aws()
+
+
 def _env(nombre: str, defecto: str = "") -> str:
     return os.environ.get(nombre, defecto).strip()
 

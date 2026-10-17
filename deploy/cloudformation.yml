@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Brújula (Hackathon 30X, reto Dapta): App Runner con la imagen de ECR, PostgreSQL en RDS, secretos en Secrets Manager
-  y EventBridge que dispara el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta.
+  Brujula (Hackathon 30X, reto Dapta): Lambda con imagen de contenedor y Function URL (HTTPS), PostgreSQL en RDS,
+  secretos en Secrets Manager, S3 para archivos con URL prefirmadas y EventBridge que dispara el siguiente lote cada hora
+  dentro de la ventana legal y la sincronizacion con Dapta.
 
 Parameters:
   ImageUri:
@@ -15,6 +16,12 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
+  DaptaAgentId:
+    Type: String
+    Default: ""
+  DaptaSequenceId:
+    Type: String
+    Default: ""
   OpenRouterApiKey:
     Type: String
     NoEcho: true
@@ -23,9 +30,13 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
+  EmailProvider:
+    Type: String
+    Default: ses
+    AllowedValues: [ses, resend]
   EmailFrom:
     Type: String
-    Default: "Brújula <hola@example.com>"
+    Default: "Brujula <hola@example.com>"
   CronKey:
     Type: String
     NoEcho: true
@@ -33,7 +44,6 @@ Parameters:
   CorsOrigins:
     Type: String
     Default: "*"
-    Description: Orígenes permitidos para la API (el dominio del front en CloudFront), separados por coma.
   CognitoUserPoolId:
     Type: String
     Default: ""
@@ -43,7 +53,7 @@ Parameters:
   CognitoDomain:
     Type: String
     Default: ""
-    Description: p. ej. brujula-jfb.auth.us-east-1.amazoncognito.com (salida de deploy/cognito.yml). Vacío = servidor abierto.
+    Description: p. ej. brujula-jfb.auth.us-east-1.amazoncognito.com (salida de deploy/cognito.yml). Vacio = servidor abierto.
   SessionSecret:
     Type: String
     NoEcho: true
@@ -51,14 +61,14 @@ Parameters:
   PublicBaseUrl:
     Type: String
     Default: ""
-    Description: URL pública del servicio (salida Url de esta misma pila). Vacío en el primer despliegue.
+    Description: URL publica del servicio (salida Url de esta misma pila, sin barra final). Vacio en el primer despliegue.
 
 Resources:
   # --- Base de datos ---
   DbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Brújula RDS (acceso público con contraseña fuerte y SSL; decisión de hackathon, no de producción)
+      GroupDescription: Brujula RDS (acceso publico con contrasena fuerte y SSL; decision de hackathon, no de produccion)
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
@@ -77,88 +87,27 @@ Resources:
       MasterUsername: brujula
       MasterUserPassword: !Ref DbPassword
       PubliclyAccessible: true
-      VPCSecurityGroups: [!Ref DbSecurityGroup]
+      VPCSecurityGroups: [!GetAtt DbSecurityGroup.GroupId]
       BackupRetentionPeriod: 1
       StorageEncrypted: true
 
-  # --- Secretos ---
+  # --- Secretos (la aplicacion los lee al arrancar con SECRET_ARN) ---
   Secreto:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: brujula/env
       SecretString: !Sub |
-        {"DAPTA_API_KEY":"${DaptaApiKey}","OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}",
-         "SESSION_SECRET":"${SessionSecret}",
+        {"DAPTA_API_KEY":"${DaptaApiKey}","DAPTA_AGENT_ID":"${DaptaAgentId}","DAPTA_SEQUENCE_ID":"${DaptaSequenceId}",
+         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}",
          "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
 
-  # --- App Runner ---
-  AccesoEcrRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement: [{Effect: Allow, Principal: {Service: build.apprunner.amazonaws.com}, Action: sts:AssumeRole}]
-      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess]
-  InstanciaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement: [{Effect: Allow, Principal: {Service: tasks.apprunner.amazonaws.com}, Action: sts:AssumeRole}]
-      Policies:
-        - PolicyName: brujula-secretos-y-ses
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - {Effect: Allow, Action: [secretsmanager:GetSecretValue], Resource: !Ref Secreto}
-              - {Effect: Allow, Action: [ses:SendEmail, ses:SendRawEmail], Resource: "*"}
-              - {Effect: Allow, Action: [s3:PutObject, s3:GetObject, s3:ListBucket], Resource: [!GetAtt Exportaciones.Arn, !Sub "${Exportaciones.Arn}/*"]}
-  Servicio:
-    Type: AWS::AppRunner::Service
-    Properties:
-      ServiceName: brujula
-      SourceConfiguration:
-        AutoDeploymentsEnabled: true
-        AuthenticationConfiguration:
-          AccessRoleArn: !GetAtt AccesoEcrRole.Arn
-        ImageRepository:
-          ImageIdentifier: !Ref ImageUri
-          ImageRepositoryType: ECR
-          ImageConfiguration:
-            Port: "8080"
-            RuntimeEnvironmentSecrets:
-              - {Name: DAPTA_API_KEY, Value: !Sub "${Secreto}:DAPTA_API_KEY::"}
-              - {Name: OPENROUTER_API_KEY, Value: !Sub "${Secreto}:OPENROUTER_API_KEY::"}
-              - {Name: RESEND_API_KEY, Value: !Sub "${Secreto}:RESEND_API_KEY::"}
-              - {Name: CRON_KEY, Value: !Sub "${Secreto}:CRON_KEY::"}
-              - {Name: SESSION_SECRET, Value: !Sub "${Secreto}:SESSION_SECRET::"}
-              - {Name: DATABASE_URL, Value: !Sub "${Secreto}:DATABASE_URL::"}
-            RuntimeEnvironmentVariables:
-              - {Name: TZ, Value: America/Bogota}
-              - {Name: EMAIL_FROM, Value: !Ref EmailFrom}
-              - {Name: AWS_REGION, Value: !Ref "AWS::Region"}
-              - {Name: EXPORT_BUCKET, Value: !Ref Exportaciones}
-              - {Name: CORS_ORIGINS, Value: !Ref CorsOrigins}
-              - {Name: COGNITO_USER_POOL_ID, Value: !Ref CognitoUserPoolId}
-              - {Name: COGNITO_CLIENT_ID, Value: !Ref CognitoClientId}
-              - {Name: COGNITO_DOMAIN, Value: !Ref CognitoDomain}
-              - {Name: PUBLIC_BASE_URL, Value: !Ref PublicBaseUrl}
-      InstanceConfiguration:
-        Cpu: "0.5 vCPU"
-        Memory: "1 GB"
-        InstanceRoleArn: !GetAtt InstanciaRole.Arn
-      HealthCheckConfiguration:
-        Protocol: HTTP
-        Path: /healthz
-
-  # --- Exportaciones y respaldos de fuentes ---
+  # --- Archivos: bucket privado con URL prefirmadas ---
   Exportaciones:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
       BucketName: !Sub "brujula-exportaciones-${AWS::AccountId}"
       PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
-      # Subidas directas desde el navegador con URL prefirmada (PUT) y descargas con URL prefirmada (GET).
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins: ["*"]
@@ -172,7 +121,64 @@ Resources:
             Prefix: subidas/
             ExpirationInDays: 30
 
-  # --- Cron: EventBridge llama al servicio por HTTPS (API destination) ---
+  # --- La aplicacion: Lambda con imagen de contenedor y Function URL ---
+  FuncionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+      Policies:
+        - PolicyName: brujula-secretos-archivos-correo
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - {Effect: Allow, Action: [secretsmanager:GetSecretValue], Resource: !Ref Secreto}
+              - {Effect: Allow, Action: [ses:SendEmail, ses:SendRawEmail], Resource: "*"}
+              - {Effect: Allow, Action: [s3:PutObject, s3:GetObject, s3:ListBucket], Resource: [!GetAtt Exportaciones.Arn, !Sub "${Exportaciones.Arn}/*"]}
+  Funcion:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: brujula
+      Description: Brujula, API, tablero y webhooks (FastAPI con Lambda Web Adapter)
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      Role: !GetAtt FuncionRole.Arn
+      Architectures: [x86_64]
+      MemorySize: 1536
+      Timeout: 300
+      Environment:
+        Variables:
+          TZ: America/Bogota
+          PORT: "8080"
+          AWS_LWA_READINESS_CHECK_PATH: /healthz
+          SECRET_ARN: !Ref Secreto
+          EMAIL_PROVIDER: !Ref EmailProvider
+          EMAIL_FROM: !Ref EmailFrom
+          EXPORT_BUCKET: !Ref Exportaciones
+          CORS_ORIGINS: !Ref CorsOrigins
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_DOMAIN: !Ref CognitoDomain
+          PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          ICP_PATH: /tmp/icp.json
+  UrlFuncion:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref Funcion
+      AuthType: NONE
+      InvokeMode: BUFFERED
+  PermisoUrl:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Funcion
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  # --- Cron: EventBridge llama a la Function URL por HTTPS (API destinations) ---
   ConexionCron:
     Type: AWS::Events::Connection
     Properties:
@@ -184,14 +190,14 @@ Resources:
     Properties:
       ConnectionArn: !GetAtt ConexionCron.Arn
       HttpMethod: POST
-      InvocationEndpoint: !Sub "https://${Servicio.ServiceUrl}/cron/lote"
+      InvocationEndpoint: !Sub "${UrlFuncion.FunctionUrl}cron/lote"
       InvocationRateLimitPerSecond: 1
   DestinoSync:
     Type: AWS::Events::ApiDestination
     Properties:
       ConnectionArn: !GetAtt ConexionCron.Arn
       HttpMethod: POST
-      InvocationEndpoint: !Sub "https://${Servicio.ServiceUrl}/cron/sincronizar"
+      InvocationEndpoint: !Sub "${UrlFuncion.FunctionUrl}cron/sincronizar"
       InvocationRateLimitPerSecond: 1
   CronRole:
     Type: AWS::IAM::Role
@@ -207,7 +213,7 @@ Resources:
   ReglaLote:
     Type: AWS::Events::Rule
     Properties:
-      Description: Siguiente lote cada hora, lunes a viernes 7 a 18 y sábados 8 a 14 (hora de Bogotá = UTC-5). La app vuelve a validar la ventana.
+      Description: Siguiente lote cada hora, lunes a viernes 7 a 18 y sabados 8 a 14 (hora de Bogota = UTC-5). La app vuelve a validar la ventana.
       ScheduleExpression: cron(5 12-23 ? * MON-FRI *)
       State: ENABLED
       Targets: [{Id: lote, Arn: !GetAtt DestinoLote.Arn, RoleArn: !GetAtt CronRole.Arn}]
@@ -220,15 +226,17 @@ Resources:
   ReglaSync:
     Type: AWS::Events::Rule
     Properties:
-      Description: Lee llamadas de Dapta y pasa al calificador a los que respondieron, cada 15 minutos.
+      Description: Lee llamadas de Dapta y pasa al calificador a los que respondieron cada 15 minutos.
       ScheduleExpression: rate(15 minutes)
       State: ENABLED
       Targets: [{Id: sync, Arn: !GetAtt DestinoSync.Arn, RoleArn: !GetAtt CronRole.Arn}]
 
 Outputs:
   Url:
-    Value: !Sub "https://${Servicio.ServiceUrl}"
+    Value: !GetAtt UrlFuncion.FunctionUrl
   BaseDeDatos:
     Value: !GetAtt Db.Endpoint.Address
   Bucket:
     Value: !Ref Exportaciones
+  Funcion:
+    Value: !Ref Funcion

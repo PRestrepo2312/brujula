@@ -7,16 +7,16 @@ Un servicio web (FastAPI) con conectores a fuentes públicas, una base PostgreSQ
 
 | Pieza | Para qué | Por qué esta y no otra |
 |---|---|---|
-| **App Runner** (imagen en ECR) | El tablero, la API, los webhooks de Dapta y de correo, y los endpoints de cron. HTTPS sin dominio propio. | Un contenedor sin administrar servidores ni balanceadores. Dapta necesita una URL pública para el webhook post-llamada; los correos necesitan enlaces públicos para "me interesa / no / baja". |
-| **RDS PostgreSQL** (db.t3.micro) | Leads, intentos con su costo, calificaciones, lotes y bitácora. | App Runner no tiene disco persistente; SQLite queda para desarrollo. El código es el mismo (SQLModel, `DATABASE_URL`). |
-| **Secrets Manager** | Clave MCP de Dapta, OpenRouter (Jev), Resend, clave del cron y la URL de la base. | Las claves no van en la imagen ni en variables planas; App Runner las inyecta como secretos. |
+| **Lambda con imagen de contenedor y Function URL** | El tablero, la API, los webhooks de Dapta y de correo, y los endpoints de cron. HTTPS propio sin dominio. | La misma imagen de ECR corre en Lambda con el Lambda Web Adapter; sin servidores ni balanceadores y con costo cero en reposo. App Runner dejó de aceptar cuentas nuevas en abril de 2026. Dapta necesita una URL pública para el webhook post-llamada; los correos necesitan enlaces públicos para "me interesa / no / baja". |
+| **RDS PostgreSQL** (db.t3.micro) | Leads, intentos con su costo, calificaciones, lotes y bitácora. | Lambda no tiene disco persistente; SQLite queda para desarrollo. El código es el mismo (SQLModel, `DATABASE_URL`). |
+| **Secrets Manager** | Clave MCP de Dapta, OpenRouter (Jev), Resend, clave del cron y la URL de la base. | Las claves no van en la imagen ni en variables planas; la aplicación los lee al arrancar por SECRET_ARN. |
 | **EventBridge** (API destinations) | Regla 1: `POST /cron/lote` cada hora, L-V 7 a 18 y sábados 8 a 14 (Bogotá). Regla 2: `POST /cron/sincronizar` cada 15 min. | Es el "cada lote" de la brújula sin un proceso vivo. La app vuelve a validar la ventana legal: EventBridge propone, el cumplimiento dispone. |
 | **S3** | Exportaciones (leads, bitácora) y copias de lo descargado de cada fuente. | Reproducibilidad: el jurado puede ver con qué datos se corrió cada lote. |
 | **Amazon SES** | Canal correo con eventos (entrega, apertura, clic, rebote) por SNS a `/webhook/ses`. | Dominio verificado con DKIM en Route 53 y salida del sandbox. Resend es el segundo proveedor con la misma interfaz (`EMAIL_PROVIDER`). |
 | **S3 con URL prefirmadas** | Subidas desde el navegador (listas propias de la pyme, RNE de la CRC) con PUT prefirmado de 15 minutos; exportaciones (leads, intentos, bitácora) con GET prefirmado de 15 minutos. Bucket privado, CORS para PUT/GET, las subidas caducan a los 30 días. | El servidor nunca recibe el archivo ni lo sirve: firma y procesa por clave. Sin bucket, el mismo flujo corre local. |
 | **Route 53** | DNS del dominio del equipo: registros DKIM de SES y, para el front, el alias de CloudFront. | Dominio propio para que el correo no caiga en spam. |
 | **Front separado** | Angular, estático en S3 detrás de CloudFront, consumiendo `/api/*` (OpenAPI en `/api/docs`, CORS por `CORS_ORIGINS`). El tablero HTML del servidor es el que corre hoy y queda como respaldo. | API primero: el servidor no depende del front para funcionar. |
-| **CloudWatch** | Logs de App Runner. | Viene solo. |
+| **CloudWatch** | Logs de Lambda. | Viene solo. |
 
 Fuera de AWS, a propósito:
 - **Dapta** (voz, calificación, secuencias) por MCP: es el producto del reto, no se reemplaza.
@@ -32,7 +32,7 @@ Fuera de AWS, a propósito:
 6. `metricas`: costo por lead encontrado (fuente), CPL y CPLQ (canal y fuente × canal), speed-to-lead, embudo y la recomendación en una frase.
 
 ## Decisiones que un jurado técnico puede cuestionar
-- **RDS público** con contraseña fuerte y SSL: decisión de hackathon para no montar NAT ni túneles. En producción iría en subred privada con App Runner por VPC connector.
+- **RDS público** con contraseña fuerte y SSL: decisión de hackathon para no montar NAT ni túneles. En producción iría en subred privada con la Lambda dentro de la VPC.
 - **SQLite en desarrollo, PostgreSQL en nube**: mismo modelo; las pruebas corren en SQLite.
 - **El MCP de Dapta no arranca la secuencia**: la activación es un clic en su panel. Lo dice su documentación; lo dejamos explícito en el tablero.
 - **Costos**: cada intento guarda su costo real cuando el proveedor lo entrega (créditos de Dapta) y una tarifa publicada cuando no (Meta, SES, OpenRouter). La tabla está en `brujula/config.py`.

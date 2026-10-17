@@ -53,7 +53,7 @@ Subidas (lista propia de la pyme en CSV o el RNE de la CRC): `POST /api/archivos
 
 ## Arquitectura en AWS
 
-`deploy/cloudformation.yml` levanta App Runner (contenedor de ECR, HTTPS), PostgreSQL en RDS, Secrets Manager, S3 con CORS para las URL prefirmadas y EventBridge con dos reglas: el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta cada 15 minutos. `deploy/deploy.sh` construye la imagen, la sube a ECR y despliega la pila. `deploy/iam-politica-despliegue.json` es la política mínima del usuario que despliega. Detalle y decisiones en `docs/arquitectura.md`.
+`deploy/cloudformation.yml` levanta Lambda con imagen de contenedor y Function URL (HTTPS), PostgreSQL en RDS, Secrets Manager, S3 con CORS para las URL prefirmadas y EventBridge con dos reglas: el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta cada 15 minutos. `deploy/deploy.sh` construye la imagen, la sube a ECR y despliega la pila. `deploy/iam-politica-despliegue.json` es la política mínima del usuario que despliega. Detalle y decisiones en `docs/arquitectura.md`.
 
 ## Fuentes y licencias
 
