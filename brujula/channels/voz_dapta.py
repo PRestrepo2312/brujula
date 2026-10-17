@@ -12,6 +12,31 @@ from ..config import RAIZ, config
 from ..dapta_mcp import REGLAS_LEY_2300, DaptaError, DaptaMCP
 
 DIAS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def duracion_seg(llamada: dict) -> int:
+    """Duración en segundos: Dapta la entrega en duration_ms (a veces duration_seconds o duration)."""
+    try:
+        d = int(llamada.get("duration_seconds") or llamada.get("duration") or 0)
+        return d or int(llamada.get("duration_ms") or 0) // 1000
+    except (TypeError, ValueError):
+        return 0
+
+
+def inicio_llamada(llamada: dict):
+    """start_timestamp (época en ms o s), start_time o created_at (ISO) → datetime UTC sin zona, como enviado_en."""
+    from datetime import datetime, timezone
+    v = llamada.get("start_timestamp") or llamada.get("start_time") or llamada.get("created_at")
+    if v is None:
+        return None
+    try:
+        if isinstance(v, (int, float)) or str(v).isdigit():
+            n = float(v)
+            return datetime.fromtimestamp(n / 1000.0 if n > 1e11 else n, tz=timezone.utc).replace(tzinfo=None)
+        t = str(v).replace("Z", "").replace("+00:00", "")
+        return datetime.fromisoformat(t[:26]).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
 from ..mensajes import variables_voz
 from ..models import Intento, Lead
 from .base import Canal, Resultado
@@ -91,13 +116,19 @@ class CanalVozDapta(Canal):
     # --- conciliación con los registros de llamada ---
     def costo_llamada(self, llamada: dict) -> float:
         """Créditos reales si vienen; si no, por duración y resultado según la tabla de Dapta."""
-        cred = llamada.get("credits") or (llamada.get("call_cost") or {}).get("credits")
+        cc = llamada.get("call_cost")
+        if isinstance(cc, str):      # list_calls lo manda como texto JSON
+            try:
+                cc = json.loads(cc)
+            except ValueError:
+                cc = {}
+        cred = llamada.get("credits") or ((cc or {}).get("credits") if isinstance(cc, dict) else None)
         if cred:
             try:
                 return round(float(cred) / 1000.0, 4)
             except (TypeError, ValueError):
                 pass
-        dur = int(llamada.get("duration_seconds") or llamada.get("duration") or 0)
+        dur = duracion_seg(llamada)
         razon = (llamada.get("disconnect_reason") or llamada.get("disconnection_reason") or "").lower()
         if "voicemail" in razon:
             return config.tarifas.voz_buzon

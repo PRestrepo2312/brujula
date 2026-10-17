@@ -111,7 +111,19 @@ class DaptaMCP:
         return [v for v in self.tool("list_voices").get("voices", []) if v.get("language", "").startswith(idioma)]
 
     def llamadas(self, agent_id: str, limit: int = 100, **filtros) -> dict:
-        return self.tool("list_calls", agent_id=agent_id, limit=limit, **filtros)
+        """Llamadas del agente, de la más reciente a la más antigua. Con límites grandes el servicio devuelve vacío: se pide por páginas de 50."""
+        filas: list[dict] = []
+        cursor = None
+        while len(filas) < limit:
+            r = self.tool("list_calls", agent_id=agent_id, limit=min(50, limit - len(filas)), cursor=cursor, **filtros)
+            if not isinstance(r, dict):
+                break
+            pagina = [c for c in (r.get("calls") or []) if isinstance(c, dict)]
+            filas.extend(pagina)
+            cursor = r.get("next_cursor")
+            if not cursor or not pagina:
+                break
+        return {"calls": filas}
 
     def llamada(self, call_id: str) -> dict:
         return self.tool("get_call", call_id=call_id)

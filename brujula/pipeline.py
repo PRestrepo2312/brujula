@@ -146,6 +146,20 @@ def ejecutar_lote(lote_id: int) -> dict:
     return {"lote_id": lote_id, "resultado": dict(resumen)}
 
 
+def _dict_json(valor) -> dict:
+    """Un objeto, o un texto JSON con un objeto, a dict; cualquier otra cosa, dict vacío."""
+    if isinstance(valor, dict):
+        return valor
+    if isinstance(valor, str) and valor.strip().startswith("{"):
+        try:
+            import json
+            v = json.loads(valor)
+            return v if isinstance(v, dict) else {}
+        except ValueError:
+            return {}
+    return {}
+
+
 def restaurar_ventana_dapta_si_vencio(voz, empresa_id: int = 1) -> bool:
     """Si un override abrió el horario de la secuencia de Dapta y ya pasaron las dos horas, vuelve el horario de la Ley 2300."""
     with sesion() as s:
@@ -286,16 +300,24 @@ def sincronizar_dapta(limite: int = 200, empresa_id: int = 1) -> dict:
         return {"error": "Dapta no configurado (clave, agente o secuencia)."}
     restaurar_ventana_dapta_si_vencio(voz, empresa_id)
     agente_id = voz.ids["agent_id"]
+    from .channels.voz_dapta import duracion_seg, inicio_llamada
     llamadas = voz.mcp.llamadas(agente_id, limit=limite)
-    filas = llamadas.get("calls") or llamadas.get("rows") or []
+    filas = [c for c in (llamadas.get("calls") or []) if isinstance(c, dict)] if isinstance(llamadas, dict) else []
+    # De la más antigua a la más reciente: si un contacto tuvo dos intentos (ocupado y luego contestó), queda el último.
+    filas.sort(key=lambda c: inicio_llamada(c) or datetime.min)
     actualizados, nuevas_cali = 0, 0
     avisos = []
     with sesion() as s:
         for c in filas:
             tel = c.get("to_number") or c.get("phone") or c.get("contact_phone") or ""
+            call_id = c.get("call_id") or c.get("id") or ""
             if not tel:
                 continue
-            it = s.exec(select(Intento).where(Intento.empresa_id == empresa_id, Intento.canal == "voz", Intento.ref_externa == tel).order_by(Intento.id.desc())).first()
+            inicio = inicio_llamada(c)
+            # El intento de esa llamada: el que ya tiene su call_id, o el último programado antes de que empezara (en modo prueba, varios leads comparten el número).
+            candidatos = s.exec(select(Intento).where(Intento.empresa_id == empresa_id, Intento.canal == "voz", Intento.ref_externa == tel).order_by(Intento.id.desc())).all()
+            it = next((x for x in candidatos if call_id and call_id in (x.detalle or {}).get("llamadas", [])), None) \
+                or next((x for x in candidatos if x.proveedor == "dapta" and (not inicio or not x.enviado_en or x.enviado_en <= inicio)), None)
             if not it:
                 l = s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.telefono == tel)).first()
                 if not l:
@@ -305,19 +327,28 @@ def sincronizar_dapta(limite: int = 200, empresa_id: int = 1) -> dict:
                 s.commit()
                 s.refresh(it)
             razon = (c.get("disconnect_reason") or c.get("disconnection_reason") or "").lower()
-            dur = int(c.get("duration_seconds") or c.get("duration") or 0)
-            if "voicemail" in razon:
+            dur = duracion_seg(c)
+            if "voicemail" in razon or c.get("in_voicemail") is True:
                 it.estado = "buzon"
             elif dur > 0 or "user_hangup" in razon or "agent_hangup" in razon:
                 it.estado = "contestado"
             else:
                 it.estado = "no_contesta"
+            an_crudo = _dict_json(c.get("call_analysis"))          # list_calls lo manda como texto JSON; get_call como objeto
+            an = dict(_dict_json(an_crudo.get("custom_analysis_data")) or _dict_json(c.get("custom_analysis_data")))
+            for k in ("call_summary", "user_sentiment", "in_voicemail"):
+                if an_crudo.get(k) is not None:
+                    an[k] = an_crudo[k]
+            resumen = an.get("call_summary") or c.get("call_summary") or c.get("summary") or ""
+            llamadas_previas = [x for x in (it.detalle or {}).get("llamadas", []) if x != call_id]
             it.duracion_seg = dur
-            it.costo_usd = voz.costo_llamada(c)
-            it.detalle = {**(it.detalle or {}), "call_id": c.get("call_id") or c.get("id"), "razon": razon, "resumen": c.get("call_summary") or c.get("summary", "")}
+            it.costo_usd = round(sum(float((it.detalle or {}).get("costos", {}).get(x, 0.0)) for x in llamadas_previas) + voz.costo_llamada(c), 4)
+            it.detalle = {**(it.detalle or {}), "call_id": call_id, "razon": razon, "resumen": resumen, "llamadas": llamadas_previas + [call_id],
+                          "costos": {**(it.detalle or {}).get("costos", {}), call_id: voz.costo_llamada(c)}, "desde": c.get("from_number")}
             it.enviado_en = it.enviado_en or datetime.utcnow()
-            an = c.get("call_analysis") or c.get("custom_analysis_data") or {}
             exito = c.get("call_successful")
+            if exito is None and an_crudo.get("call_successful") is not None:
+                exito = an_crudo.get("call_successful")
             l = s.get(Lead, it.lead_id)
             if isinstance(an, dict) and an:
                 if str(an.get("interesado", "")).lower() in ("true", "si", "sí", "yes"):
