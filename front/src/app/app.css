@@ -1,0 +1,13 @@
+.cab { display: flex; align-items: center; gap: 22px; padding: 12px 26px; background: #fff; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.marca { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: .16em; font-size: 12px; color: var(--navy); text-decoration: none; }
+.marca i { width: 16px; height: 16px; border: 2px solid var(--accent); border-radius: 50%; display: inline-block; }
+nav { display: flex; gap: 16px; }
+nav a { color: var(--navy); text-decoration: none; font-weight: 600; padding: 6px 2px; border-bottom: 2px solid transparent; cursor: pointer; }
+nav a.activo { border-bottom-color: var(--accent); }
+.globo { background: var(--accent); color: #fff; border-radius: 999px; font-size: 10px; padding: 1px 6px; margin-left: 4px; }
+.derecha { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12px; flex-wrap: wrap; }
+.ventana { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: #fff; }
+.ventana.ok { color: var(--ok); border-color: #BFE3CF; } .ventana.no { color: var(--bad); border-color: #F1C4C0; }
+.agente b { font-weight: 600; color: var(--sec); margin-right: 6px; } .agente b.on { color: var(--ok); }
+.usuario { color: var(--sec); } .salir { color: var(--navy); cursor: pointer; text-decoration: underline; }
+main { padding: 22px 26px; max-width: 1320px; margin: 0 auto; }

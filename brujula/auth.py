@@ -16,7 +16,7 @@ from .config import config
 
 COOKIE = "brujula_sesion"
 DURACION_SESION_SEG = 12 * 3600
-PUBLICAS = ("/login", "/callback", "/logout", "/healthz", "/r/", "/webhook/", "/cron/", "/api/docs", "/api/openapi.json", "/static/")
+PUBLICAS = ("/login", "/callback", "/logout", "/healthz", "/r/", "/webhook/", "/cron/", "/api/docs", "/api/openapi.json", "/static/", "/app")
 
 
 class Cognito:
@@ -95,7 +95,8 @@ def leer_estado(valor: str) -> str:
 
 
 def es_publica(ruta: str) -> bool:
-    return ruta == "/" and False or any(ruta.startswith(p) for p in PUBLICAS)
+    # "/" solo redirige (al front o al login); "/app" es el front Angular, que pide su propio JWT a Cognito.
+    return ruta == "/" or any(ruta.startswith(p) for p in PUBLICAS)
 
 
 def _empresa_y_rol(claims: dict) -> tuple[int, str]:

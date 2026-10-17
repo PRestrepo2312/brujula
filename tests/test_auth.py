@@ -21,4 +21,5 @@ def test_urls_y_cookies_de_cognito():
     assert auth.leer_cookie(galleta)["email"] == "pedro@correo.com"
     assert auth.leer_cookie("manipulada") is None
     assert auth.leer_estado(auth.firmar_estado("/leads")) == "/leads"
-    assert auth.es_publica("/r/abc") and auth.es_publica("/webhook/dapta") and not auth.es_publica("/api/leads") and not auth.es_publica("/")
+    assert auth.es_publica("/r/abc") and auth.es_publica("/webhook/dapta") and not auth.es_publica("/api/leads") and not auth.es_publica("/tablero")
+    assert auth.es_publica("/") and auth.es_publica("/app/leads/5")   # la raíz solo redirige; el front Angular trae su propio JWT

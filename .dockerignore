@@ -1,0 +1,15 @@
+.git
+.venv
+.env
+.env.*
+data
+*.db
+__pycache__
+**/__pycache__
+.pytest_cache
+tests
+docs
+deploy/*.log
+front/node_modules
+front/dist
+front/.angular

@@ -18,15 +18,18 @@ CUENTA=$(aws sts get-caller-identity --profile "$PERFIL" --query Account --outpu
 ECR="$CUENTA.dkr.ecr.$REGION.amazonaws.com"
 aws ecr describe-repositories --repository-names "$REPO" --profile "$PERFIL" --region "$REGION" >/dev/null 2>&1 \
   || aws ecr create-repository --repository-name "$REPO" --profile "$PERFIL" --region "$REGION" >/dev/null
-aws ecr get-login-password --profile "$PERFIL" --region "$REGION" | docker login --username AWS --password-stdin "$ECR"
-# Lambda solo acepta manifiestos Docker v2 (sin attestations OCI de BuildKit): una sola plataforma, sin provenance ni SBOM.
-docker build --platform linux/amd64 --provenance=false --sbom=false -t "$REPO:$TAG" .
-docker tag "$REPO:$TAG" "$ECR/$REPO:$TAG"
-for intento in 1 2 3 4; do
-  if docker push "$ECR/$REPO:$TAG"; then break; fi
-  echo "push a ECR falló (intento $intento), reintentando en 15 s"; sleep 15
-  [ "$intento" = 4 ] && exit 1
-done
+# SALTAR_IMAGEN=1 TAG=<etiqueta ya publicada> reutiliza una imagen que ya está en ECR (reanudar un despliegue a medias).
+if [ -z "${SALTAR_IMAGEN:-}" ]; then
+  aws ecr get-login-password --profile "$PERFIL" --region "$REGION" | docker login --username AWS --password-stdin "$ECR"
+  # Lambda solo acepta manifiestos Docker v2 (sin attestations OCI de BuildKit): una sola plataforma, sin provenance ni SBOM.
+  docker build --platform linux/amd64 --provenance=false --sbom=false -t "$REPO:$TAG" .
+  docker tag "$REPO:$TAG" "$ECR/$REPO:$TAG"
+  for intento in 1 2 3 4; do
+    if docker push "$ECR/$REPO:$TAG"; then break; fi
+    echo "push a ECR falló (intento $intento), reintentando en 15 s"; sleep 15
+    [ "$intento" = 4 ] && exit 1
+  done
+fi
 
 aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --template-file deploy/cloudformation.yml \
   --capabilities CAPABILITY_IAM \
@@ -39,7 +42,7 @@ echo "Servicio: $URL"
 
 # Paso 2: Cognito necesita la URL del servicio, y el servicio necesita los ids de Cognito: dos pasos, una vez.
 aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --template-file deploy/cognito.yml \
-  --parameter-overrides CallbackUrl="$URL/callback" LogoutUrl="$URL/login" DomainPrefix="${COGNITO_PREFIX:-brujula-jfb}" FrontCallbackUrl="${FRONT_CALLBACK_URL:-}"
+  --parameter-overrides CallbackUrl="$URL/callback" LogoutUrl="$URL/login" DomainPrefix="${COGNITO_PREFIX:-brujula-jfb}" FrontBaseUrl="${FRONT_BASE_URL:-$URL/app}"
 POOL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
 CLIENTE=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
 DOMINIO=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='Domain'].OutputValue" --output text)
@@ -48,7 +51,8 @@ aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$
   --capabilities CAPABILITY_IAM \
   --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
     DaptaApiKey="${DAPTA_API_KEY:-}" DaptaAgentId="${DAPTA_AGENT_ID:-}" DaptaSequenceId="${DAPTA_SEQUENCE_ID:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailProvider="${EMAIL_PROVIDER:-ses}" EmailFrom="${EMAIL_FROM:-Brujula <hola@example.com>}" \
-    CognitoUserPoolId="$POOL" CognitoClientId="$CLIENTE" CognitoDomain="$DOMINIO" SessionSecret="$SESION" PublicBaseUrl="$URL"
+    CognitoUserPoolId="$POOL" CognitoClientId="$CLIENTE" CognitoDomain="$DOMINIO" SessionSecret="$SESION" PublicBaseUrl="$URL" \
+    CorsOrigins="${CORS_ORIGINS:-$URL,http://localhost:4200}"
 
 aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --query 'Stacks[0].Outputs' --output table
 echo "Usuarios: aws cognito-idp admin-create-user --user-pool-id $POOL --username correo --user-attributes Name=email,Value=correo Name=email_verified,Value=true --profile $PERFIL"

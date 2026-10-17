@@ -132,6 +132,11 @@ class DaptaMCP:
     def crear_agente_voz(self, **campos) -> dict:
         return self.tool("create_voice_agent", **campos)
 
+    def actualizar_agente(self, agent_id: str, **campos) -> dict:
+        """Cambia campos del agente de voz (p. ej. dapta_webhook) con el ciclo preview → commit."""
+        previo = self.tool("preview_update_voice_agent", agent_id=agent_id, **campos)
+        return self.tool("commit_update_voice_agent", preview_token=self._token(previo))
+
     def crear_secuencia(self, nombre: str, agent_id: str, descripcion: str = "") -> dict:
         previo = self.tool("preview_create_sequence", name=nombre, agent_id=agent_id, description=descripcion or None)
         return self.tool("commit_create_sequence", preview_token=self._token(previo))

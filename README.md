@@ -43,9 +43,20 @@ Pruebas: `pip install -r requirements-dev.txt && python -m pytest`.
 
 Brújula habla con Dapta por su MCP (`https://mcp.dapta.ai/mcp`, cabecera `x-api-key`). `cli.py dapta-setup` crea el agente calificador (propósito 103, voz colombiana, variables post-llamada: interesado, pierde_contactos, mejor_momento, correo_demo, baja) con webhook a `/webhook/dapta`, y la secuencia con el horario de la Ley 2300. Los contactos se adjuntan por `commit_attach_sequence_contacts`; **la secuencia se activa en el panel de Dapta** (el MCP no arranca llamadas). Las llamadas necesitan un plan con créditos (la prueba Pro sirve).
 
+## Empresas, agente y notificaciones
+
+Brújula es multiempresa: cada cuenta (empresa) tiene su ICP, sus canales, su presupuesto por lote, su Dapta y su correo de notificaciones; leads, lotes, costos, bajas y bitácora están aislados por `empresa_id`. Los usuarios viven en Cognito con los atributos `custom:empresa_id` y `custom:rol` (`admin` ve todas las empresas con `?empresa=ID`; `usuario` solo la suya). La empresa 1 es la de demostración y existe siempre.
+
+El agente reparte el trabajo entre dos modelos y reglas de respaldo:
+- **Bedrock (Claude Haiku 5.5)**: lo lento y creativo. Convierte el cliente ideal escrito en español en criterios estructurados (`POST /api/icp/interpretar`), redacta el primer mensaje de cada lead con su señal y explica decisiones en una frase.
+- **Jev (TypeSafe, por OpenRouter)**: lo rápido y repetitivo con probabilidad calibrada. Puntúa cada lead contra el ICP y clasifica respuestas libres (interesado, no, después, equivocado, baja).
+- Sin Bedrock o sin Jev, mandan las reglas y palabras clave: nada se cae y el resultado dice qué motor se usó.
+
+Notificaciones por empresa (`/api/notificaciones`): búsqueda terminada, lote enviado, lead que respondió, calificado por Dapta, baja; en la app y por correo cuando SES está configurado.
+
 ## API y front
 
-El servidor expone la API JSON en `/api/*` (OpenAPI en `/api/docs`) con CORS configurable (`CORS_ORIGINS`): métricas, leads con filtros y paginación, detalle y revisión humana de un lead, creación de lotes, lotes, bitácora, ICP, sincronización con Dapta, archivos y exportaciones. El tablero HTML que sirve el propio servidor usa la misma lógica y es el que se despliega. Un front separado (Angular en S3 + CloudFront) consume esta API sin cambios en el servidor.
+El servidor expone la API JSON en `/api/*` (OpenAPI en `/api/docs`) con CORS configurable (`CORS_ORIGINS`): estado y agente, empresa y usuarios, ICP e interpretación, fuentes y búsqueda, leads con filtros y paginación, detalle, revisión humana y vista previa del mensaje, respuestas libres, lotes, bitácora, notificaciones, sincronización con Dapta, archivos y exportaciones. El tablero HTML que sirve el propio servidor (`/tablero`) usa la misma lógica. El front Angular vive en `front/`: el `Dockerfile` lo compila en una primera etapa (`ng build --base-href /app/`) y la misma aplicación lo sirve en `/app/` (la raíz `/` redirige allí), con lo que API y front comparten origen y no hace falta CloudFront ni dominio. El front lee su configuración de `/app/config.json` (la genera el servidor con los ids de Cognito), entra con Cognito (flujo de código con PKCE, callback `/app/callback`) y llama a la API con el JWT en `Authorization: Bearer`. `deploy/front.yml` y `deploy/front.sh` son la variante en S3 + CloudFront para cuentas con CloudFront habilitado.
 
 ## Archivos: S3 con URL prefirmadas
 
@@ -53,7 +64,7 @@ Subidas (lista propia de la pyme en CSV o el RNE de la CRC): `POST /api/archivos
 
 ## Arquitectura en AWS
 
-`deploy/cloudformation.yml` levanta Lambda con imagen de contenedor y Function URL (HTTPS), PostgreSQL en RDS, Secrets Manager, S3 con CORS para las URL prefirmadas y EventBridge con dos reglas: el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta cada 15 minutos. `deploy/deploy.sh` construye la imagen, la sube a ECR y despliega la pila. `deploy/iam-politica-despliegue.json` es la política mínima del usuario que despliega. Detalle y decisiones en `docs/arquitectura.md`.
+`deploy/cloudformation.yml` levanta Lambda con imagen de contenedor y Function URL (HTTPS), PostgreSQL en RDS, Secrets Manager, S3 con CORS para las URL prefirmadas y EventBridge con dos reglas: el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta cada 15 minutos. La Function URL pública lleva los dos permisos que Lambda exige desde octubre de 2025 (`lambda:InvokeFunctionUrl` y `lambda:InvokeFunction` limitado a llamadas por la URL). `deploy/deploy.sh` construye la imagen (front incluido), la sube a ECR, despliega la pila, crea la pila de Cognito (`deploy/cognito.yml`) con las URL de retorno del servidor y del front, y vuelve a actualizar la pila principal con los ids de Cognito y la URL pública; `SALTAR_IMAGEN=1 TAG=<etiqueta>` reanuda sin reconstruir. `deploy/iam-politica-despliegue.json` es la política mínima del usuario que despliega. Detalle y decisiones en `docs/arquitectura.md`.
 
 ## Fuentes y licencias
 

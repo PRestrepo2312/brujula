@@ -137,6 +137,8 @@ Resources:
               - {Effect: Allow, Action: [secretsmanager:GetSecretValue], Resource: !Ref Secreto}
               - {Effect: Allow, Action: [ses:SendEmail, ses:SendRawEmail], Resource: "*"}
               - {Effect: Allow, Action: [s3:PutObject, s3:GetObject, s3:ListBucket], Resource: [!GetAtt Exportaciones.Arn, !Sub "${Exportaciones.Arn}/*"]}
+              - {Effect: Allow, Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream], Resource: "*"}
+              - {Effect: Allow, Action: [cognito-idp:AdminCreateUser, cognito-idp:AdminGetUser, cognito-idp:AdminUpdateUserAttributes], Resource: "*"}
   Funcion:
     Type: AWS::Lambda::Function
     Properties:
@@ -170,6 +172,8 @@ Resources:
       TargetFunctionArn: !Ref Funcion
       AuthType: NONE
       InvokeMode: BUFFERED
+  # Desde octubre de 2025 una Function URL pública necesita dos permisos: InvokeFunctionUrl e InvokeFunction
+  # (este último limitado a llamadas que entran por la URL); con uno solo responde 403.
   PermisoUrl:
     Type: AWS::Lambda::Permission
     Properties:
@@ -177,6 +181,13 @@ Resources:
       Action: lambda:InvokeFunctionUrl
       Principal: "*"
       FunctionUrlAuthType: NONE
+  PermisoInvocarPorUrl:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Funcion
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
 
   # --- Cron: EventBridge llama a la Function URL por HTTPS (API destinations) ---
   ConexionCron:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -26,6 +27,10 @@ app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in config.cors
 plantillas = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 crear_tablas()
 cognito = auth.Cognito()
+
+# Front Angular compilado: en la imagen Docker queda en /app/front_dist; en desarrollo, en front/dist tras `npm run build`.
+_RAIZ = Path(__file__).resolve().parents[2]
+FRONT = next((p for p in (_RAIZ / "front_dist", _RAIZ / "front" / "dist" / "front" / "browser") if (p / "index.html").exists()), None)
 
 
 # ---------------- Modelos de entrada ----------------
@@ -166,9 +171,48 @@ def api_yo(request: Request):
     return {"usuario": u, "login_activo": cognito.activo, "empresa_id": empresa_de(request), "admin": es_admin(request)}
 
 
+# ---------------- Front Angular (servido por la misma aplicación en /app) ----------------
+
+@app.get("/")
+def raiz(request: Request):
+    """Con el front compilado, la raíz es la aplicación Angular; el tablero del servidor queda en /tablero."""
+    if FRONT is not None:
+        return RedirectResponse("/app/")
+    if cognito.activo and getattr(request.state, "usuario", None) is None:
+        return RedirectResponse("/login?next=/tablero", status_code=303)
+    return tablero(request)
+
+
+@app.get("/app/config.json")
+def app_config():
+    """Configuración que lee el front al arrancar: la API es el mismo origen y Cognito es el del servidor."""
+    base = config.public_base_url.rstrip("/")
+    return JSONResponse({"apiUrl": "", "frontUrl": f"{base}/app",
+                         "cognito": {"domain": config.cognito_domain, "clientId": config.cognito_client_id,
+                                     "userPoolId": config.cognito_user_pool_id, "region": os.environ.get("AWS_REGION", "us-east-1")}},
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/app")
+def app_sin_barra():
+    return RedirectResponse("/app/")
+
+
+@app.get("/app/{ruta:path}")
+def app_front(ruta: str):
+    """Archivos del front; cualquier ruta que no sea un archivo devuelve index.html (rutas del router de Angular)."""
+    if FRONT is None:
+        return JSONResponse({"error": "front no compilado: ejecute `npm run build` en front/"}, status_code=404)
+    destino = (FRONT / ruta).resolve() if ruta else None
+    if destino is not None and destino.is_file() and FRONT in destino.parents:
+        con_hash = "-" in destino.stem and destino.suffix in (".js", ".css")   # main-XXXX.js, chunk-XXXX.js, styles-XXXX.css
+        return FileResponse(str(destino), headers={"Cache-Control": "public, max-age=31536000, immutable" if con_hash else "no-cache"})
+    return FileResponse(str(FRONT / "index.html"), headers={"Cache-Control": "no-cache"})
+
+
 # ---------------- Tablero HTML del servidor ----------------
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/tablero", response_class=HTMLResponse)
 def tablero(request: Request):
     emp_id = empresa_de(request)
     m = metrics.calcular(emp_id)

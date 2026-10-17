@@ -1,0 +1,24 @@
+<header class="cab">
+  <a class="marca" routerLink="/"><i></i> BRÚJULA</a>
+  @if (auth.autenticado) {
+    <nav>
+      <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">Tablero</a>
+      <a routerLink="/buscar" routerLinkActive="activo">Buscar</a>
+      <a routerLink="/leads" routerLinkActive="activo">Leads</a>
+      <a routerLink="/lotes" routerLinkActive="activo">Lotes</a>
+      <a routerLink="/notificaciones" routerLinkActive="activo">Notificaciones @if (noLeidas() > 0) {<span class="globo">{{ noLeidas() }}</span>}</a>
+      <a routerLink="/configuracion" routerLinkActive="activo">Configuración</a>
+    </nav>
+    <div class="derecha">
+      @if (estado(); as e) {
+        <span class="ventana" [class.ok]="e.ventana_ok" [class.no]="!e.ventana_ok">{{ e.ventana_ok ? 'Se puede contactar' : 'Fuera de ventana · ' + e.razon }}</span>
+        <span class="agente" title="Bedrock, Jev y Dapta">
+          <b [class.on]="e.agente.bedrock">Bedrock</b> <b [class.on]="e.agente.jev">Jev</b> <b [class.on]="e.agente.dapta_voz_real">Dapta</b>
+        </span>
+      }
+      <span class="usuario">{{ auth.email }}</span>
+      @if (auth.activo) {<a class="salir" (click)="auth.logout()">salir</a>} @else {<span class="ventana no">sin login (local)</span>}
+    </div>
+  }
+</header>
+<main><router-outlet /></main>

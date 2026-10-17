@@ -1,24 +1,24 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Brújula, usuarios: User Pool de Cognito (solo cuentas creadas por el administrador), cliente con flujo de código y dominio alojado.
+Description: "Brujula, usuarios: User Pool de Cognito (solo cuentas creadas por el administrador), cliente con flujo de codigo y dominio alojado."
 
 Parameters:
   CallbackUrl:
     Type: String
-    Description: URL de retorno del servidor, p. ej. https://xxxx.us-east-1.awsapprunner.com/callback
+    Description: URL de retorno del servidor, p. ej. https://xxxx.lambda-url.us-east-1.on.aws/callback
   LogoutUrl:
     Type: String
-    Description: p. ej. https://xxxx.us-east-1.awsapprunner.com/login
+    Description: p. ej. https://xxxx.lambda-url.us-east-1.on.aws/login
   DomainPrefix:
     Type: String
     Default: brujula-jfb
     Description: Prefijo del dominio alojado de Cognito (único en la región).
-  FrontCallbackUrl:
+  FrontBaseUrl:
     Type: String
     Default: ""
-    Description: URL de retorno del front en CloudFront (vacío si no hay front separado).
+    Description: Base del front Angular sin barra final, p. ej. https://xxxx.lambda-url.us-east-1.on.aws/app (vacío si no hay front).
 
 Conditions:
-  HayFront: !Not [!Equals [!Ref FrontCallbackUrl, ""]]
+  HayFront: !Not [!Equals [!Ref FrontBaseUrl, ""]]
 
 Resources:
   Pool:
@@ -45,8 +45,8 @@ Resources:
       AllowedOAuthFlows: [code]
       AllowedOAuthScopes: [openid, email, profile]
       SupportedIdentityProviders: [COGNITO]
-      CallbackURLs: !If [HayFront, [!Ref CallbackUrl, !Ref FrontCallbackUrl], [!Ref CallbackUrl]]
-      LogoutURLs: [!Ref LogoutUrl]
+      CallbackURLs: !If [HayFront, [!Ref CallbackUrl, !Sub "${FrontBaseUrl}/callback"], [!Ref CallbackUrl]]
+      LogoutURLs: !If [HayFront, [!Ref LogoutUrl, !Sub "${FrontBaseUrl}/login"], [!Ref LogoutUrl]]
       PreventUserExistenceErrors: ENABLED
       AccessTokenValidity: 12
       IdTokenValidity: 12

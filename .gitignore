@@ -10,4 +10,7 @@ node_modules/
 data/
 !data/.gitkeep
 .pytest_cache/
-deploy/deploy.log
+deploy/*.log
+front_dist/
+front/dist/
+front/.angular/

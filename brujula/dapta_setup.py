@@ -60,6 +60,10 @@ def configurar(crear_agente: bool = True, crear_secuencia: bool = True) -> dict:
         )
         agent_id = r.get("agent_id") or (r.get("agent") or {}).get("agent_id") or (r.get("agent") or {}).get("id", "")
         salida["agente"] = {"agent_id": agent_id, "verified": r.get("verified"), "not_verified": r.get("not_verified")}
+    elif agent_id and webhook:
+        # El agente ya existe (p. ej. se creó en local): se le fija el webhook de la URL pública del despliegue.
+        r = mcp.actualizar_agente(agent_id, dapta_webhook=webhook)
+        salida["webhook"] = {"agent_id": agent_id, "dapta_webhook": webhook, "verified": r.get("verified"), "not_verified": r.get("not_verified")}
     seq_id = config.dapta_sequence_id or previo.get("sequence_id", "")
     if crear_secuencia and agent_id and not seq_id:
         r = mcp.crear_secuencia("Brújula · primer contacto", agent_id, "Leads de fuentes públicas que encajan con el ICP. Horario Ley 2300.")
