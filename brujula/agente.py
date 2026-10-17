@@ -218,8 +218,8 @@ def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None) -> tuple[st
         return whatsapp_texto(lead), {"motor": "plantilla", "costo_usd": 0.0}
     sistema = ("Redactas el primer mensaje de contacto comercial de Brújula a una empresa colombiana, en español de Colombia, honesto y corto (máximo 90 palabras). "
                "Reglas: empieza con 'Hola, equipo de {empresa}'; menciona la señal; explica en una frase qué hacemos (ayudamos a negocios a atender y calificar a los clientes que llaman o escriben, sin perder ninguno); "
-               "pide una llamada de 5 minutos; incluye literalmente las marcas {url_si}, {url_no} y {url_baja} como enlaces de 'Sí, me interesa', 'No, gracias' y 'baja'; "
-               "termina con 'Datos de contacto tomados de registros públicos de empresas (datos.gov.co).' Nada de promesas ni precios.")
+               "pide una llamada de 5 minutos; al final, en tres líneas aparte, pon literalmente 'Sí, me interesa: {url_si}', 'No, gracias: {url_no}' y "
+               "'Para no recibir más mensajes: {url_baja}' (esas marcas se convierten en botones). Nada de promesas ni precios.")
     usuario = json.dumps({"empresa": lead.razon_social.title(), "ciudad": lead.ciudad.title(), "sector": lead.sector, "senal": senal_en_palabras(lead),
                           "perfil": (icp.descripcion if icp else "")}, ensure_ascii=False)
     texto, uso = b.preguntar(sistema, usuario, max_tokens=350)

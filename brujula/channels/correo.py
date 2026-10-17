@@ -9,7 +9,7 @@ import secrets
 import httpx
 
 from ..config import config
-from ..mensajes import asunto_correo, cuerpo_correo
+from ..mensajes import asunto_correo, cuerpo_correo, html_correo
 from ..models import Intento, Lead
 from .base import Canal, Resultado
 
@@ -26,22 +26,24 @@ class CanalCorreo(Canal):
         token = intento.detalle.get("token") or secrets.token_urlsafe(12)
         base = config.public_base_url.rstrip("/")
         urls = {v: f"{base}/r/{token}?v={v}" for v in ("si", "no", "baja")}
-        texto, html = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"])
+        texto, _ = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"])
         redactado = (intento.detalle or {}).get("texto")
         if redactado and "{url_si}" in redactado:
             texto = redactado.replace("{url_si}", urls["si"]).replace("{url_no}", urls["no"]).replace("{url_baja}", urls["baja"])
-            html = "<p>" + texto.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
         asunto = asunto_correo(lead)
         detalle = {"token": token, "asunto": asunto}
-        destino = lead.correo
+        destino, nota = lead.correo, ""
         if config.modo_prueba:
             # Desvío: el correo lleva el pitch de la empresa real, pero va a un correo verificado del equipo. Nunca al correo del lead.
             destino = config.destino_prueba("correo", lead.id or 0)
             if not destino:
                 return Resultado(estado="omitido", costo_usd=0.0, proveedor="bloqueado", mensaje=texto, detalle={**detalle, "motivo": "modo prueba: sin CORREOS_PRUEBA"})
             detalle["desvio"] = {"original": lead.correo, "destino": destino}
-            texto = f"[Prueba: este correo iba para {lead.correo}]\n\n{texto}"
-            html = f"<p><i>Prueba: este correo iba para {lead.correo}</i></p>{html}"
+            nota = f"Prueba: este correo iba para {lead.correo}"
+        # El HTML con la marca (botones en vez de enlaces sueltos) se arma siempre a partir del texto, sea plantilla o redacción del agente.
+        html = html_correo(texto, urls["si"], urls["no"], urls["baja"], nota=nota)
+        if nota:
+            texto = f"[{nota}]\n\n{texto}"
         if not self.real:
             return Resultado(estado="enviado", costo_usd=config.tarifas.correo, ref_externa=f"sim_{token}", proveedor="simulado",
                              mensaje=texto, detalle=detalle)
