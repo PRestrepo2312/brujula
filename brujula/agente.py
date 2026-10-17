@@ -245,7 +245,7 @@ def explicar(contexto: dict, respaldo: str) -> str:
 
 # ---------------- Respuestas ----------------
 
-PALABRAS_BAJA = ("baja", "no me escrib", "no me llam", "dejen de", "quitar", "eliminar", "stop", "spam")
+PALABRAS_BAJA = ("baja", "no me escrib", "no me llam", "dejen de", "quitar", "eliminar", "stop", "spam", "no recibir", "no quiero recibir", "sair")
 PALABRAS_SI = ("sí", "si ", "me interesa", "claro", "dale", "cuando", "agend", "llam", "ok")
 PALABRAS_DESPUES = ("después", "despues", "luego", "más adelante", "otro momento", "próxima", "proxima")
 PALABRAS_NO = ("no me interesa", "no gracias", "no, gracias", "no por ahora", "ya tenemos", "no necesit")
@@ -264,7 +264,7 @@ def clasificar_respuesta_reglas(texto: str) -> str:
         return "despues"
     if any(p in t for p in PALABRAS_SI):
         return "interesado"
-    return "no_interesado"
+    return "otro"      # un "hola" o una pregunta no es un no: queda sin decidir hasta que el agente o una persona lo lea
 
 
 def clasificar_respuesta(texto: str) -> tuple[str, dict]:

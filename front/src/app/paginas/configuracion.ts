@@ -25,15 +25,15 @@ import { AuthService } from '../core/auth.service';
           <div><label>Avisar por</label><div class="acciones">
             @for (c of ['app','correo']; track c) {<span class="chip" [class.on]="form.config.notificar_por.includes(c)" (click)="alternarAviso(c)">{{ c }}</span>}
           </div></div>
-          <div style="margin-top:12px"><label>Idioma de los mensajes por fuente (sin elegir: el del país de la fuente)</label>
-            <div class="acciones">
+          <div style="margin-top:12px"><label>Idioma de los mensajes por fuente</label>
+            <table>
               @for (f of fuentes(); track f.clave) {
-                <span class="chip" style="cursor:default">{{ f.clave.toUpperCase() }}
-                  <select [(ngModel)]="form.config.idiomas[f.clave]" style="width:auto;padding:2px 4px;border:0;background:transparent">
-                    <option value="">{{ nombreIdioma(f.idioma) }} (país)</option><option value="es">Español</option><option value="pt">Português</option><option value="en">English</option>
-                  </select></span>
+                <tr><td style="width:60%">{{ f.nombre }}</td>
+                  <td><select [ngModel]="form.config.idiomas[f.clave] || ''" (ngModelChange)="form.config.idiomas[f.clave] = $event" style="padding:5px 8px">
+                    <option value="">{{ nombreIdioma(f.idioma) }} (idioma del país)</option><option value="es">Español</option><option value="pt">Português</option><option value="en">English</option>
+                  </select></td></tr>
               }
-            </div>
+            </table>
           </div>
           <div style="margin-top:12px"><label>Horario de la Ley 2300 (lunes a viernes 7 a. m. a 7 p. m., sábados 8 a. m. a 3 p. m., nunca domingos ni festivos)</label>
             <div class="acciones">

@@ -44,14 +44,13 @@ const ESTADOS_MX: [string, string][] = [['00', 'Todo México'], ['01', 'Aguascal
       </div>
       <div class="tarjeta">
         <h2>2. Elija las fuentes</h2>
-        <p class="sec">Registros públicos y gratuitos. "Contacta" = Brújula puede llamar o escribir; "solo encontrar" = trae la empresa para su lista, sin contacto automático.</p>
+        <p class="sec">Registros públicos y gratuitos. "Contacta" = Brújula puede llamar o escribir; "solo encontrar" = trae la empresa para su lista, sin contacto automático. Pase el cursor por una fuente para ver qué trae.</p>
         @for (g of grupos(); track g.pais) {
           <h3 class="pais">{{ g.nombre }}</h3>
           <div class="fuentes">
             @for (f of g.fuentes; track f.clave) {
-              <div class="fuente" [class.on]="elegidas().includes(f.clave)" (click)="alternar(f.clave)">
+              <div class="fuente" [class.on]="elegidas().includes(f.clave)" (click)="alternar(f.clave)" [title]="f.descripcion">
                 <div class="fuente-cab"><b>{{ f.nombre }}</b><span class="pill" [class.pasa]="f.contacta">{{ f.contacta ? 'contacta' : 'solo encontrar' }}</span></div>
-                <div class="sec">{{ f.descripcion }}</div>
               </div>
             }
           </div>
@@ -109,7 +108,7 @@ const ESTADOS_MX: [string, string][] = [['00', 'Todo México'], ['01', 'Aguascal
     .fuentes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } @media (max-width: 700px) { .fuentes { grid-template-columns: 1fr; } }
     .fuente { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: #fff; font-size: 13px; }
     .fuente.on { border-color: var(--accent); background: #FCEBDD; }
-    .fuente-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; } .fuente-cab b { color: var(--ink); }
+    .fuente-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .fuente-cab b { color: var(--ink); font-weight: 600; }
   `],
 })
 export class BuscarPage {

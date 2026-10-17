@@ -5,13 +5,14 @@ from .base import Conector, Registro
 from .co_reps import ConectorREPS
 from .co_men import ConectorMEN
 from .co_rnt import ConectorRNT
+from .co_rues import ConectorRUES
 from .co_secop import ConectorSECOP
 from .csv_propio import ConectorCSV
 from .osm import ConectorOSM
 from .otros_paises import ConectorDENUE, ConectorCNPJ, ConectorNYC
 
 CONECTORES: dict[str, type[Conector]] = {
-    c.clave: c for c in (ConectorREPS, ConectorMEN, ConectorRNT, ConectorSECOP, ConectorOSM, ConectorCSV, ConectorDENUE, ConectorCNPJ, ConectorNYC)
+    c.clave: c for c in (ConectorREPS, ConectorMEN, ConectorRNT, ConectorSECOP, ConectorRUES, ConectorOSM, ConectorCSV, ConectorDENUE, ConectorCNPJ, ConectorNYC)
 }
 
 
