@@ -35,7 +35,11 @@ class ConectorDENUE(Conector):
                 r = http.get(u)
                 if r.status_code != 200:
                     return
-                filas = r.json() if r.content else []
+                try:
+                    filas = r.json() if r.content else []
+                except ValueError:
+                    # El INEGI responde 200 con texto plano cuando la clave no sirve: "No autorizado. Utilice una clave válida."
+                    raise RuntimeError(f"DENUE: {r.text.strip()[:120]}") from None
                 if not filas:
                     return
                 for f in filas:
