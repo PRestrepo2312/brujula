@@ -42,6 +42,8 @@ Resources:
       UserPoolId: !Ref Pool
       GenerateSecret: false
       AllowedOAuthFlowsUserPoolClient: true
+      # USER_PASSWORD_AUTH: el formulario propio del front habla directo con Cognito por HTTPS (la clave nunca pasa por el servidor).
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_USER_SRP_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
       AllowedOAuthFlows: [code]
       AllowedOAuthScopes: [openid, email, profile]
       SupportedIdentityProviders: [COGNITO]

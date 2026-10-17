@@ -25,3 +25,12 @@ a { color: var(--navy); }
 .acciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; background: #fff; cursor: pointer; font-size: 12px; }
 .chip.on { border-color: var(--accent); color: var(--accent2); background: #FCEBDD; }
+.pill.prueba { background: #FCEBDD; color: var(--accent2); border: 1px solid #F3C9A8; letter-spacing: .06em; }
+.entrada { min-height: calc(100vh - 140px); display: grid; place-items: center; }
+.tarjeta.login { width: 100%; max-width: 420px; padding: 28px 30px 22px; }
+.marca-login { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.marca-login i { width: 34px; height: 34px; border: 3px solid var(--accent); border-radius: 50%; display: inline-block; flex: none; }
+.marca-login b { display: block; letter-spacing: .18em; color: var(--navy); font-size: 13px; } .marca-login span { font-size: 12px; color: var(--sec); }
+.login h2 { margin-bottom: 6px; } .login label { margin-top: 12px; } .boton.ancho { width: 100%; margin-top: 18px; }
+.enlaces { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: 12px; } .enlaces a { cursor: pointer; }
+.pie-login { margin-top: 18px; line-height: 1.5; }

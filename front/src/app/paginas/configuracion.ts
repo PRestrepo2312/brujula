@@ -35,6 +35,14 @@ import { AuthService } from '../core/auth.service';
           <div class="acciones"><button class="boton" (click)="guardar()" [disabled]="ocupado()">Guardar</button>@if (msg()) {<span class="sec">{{ msg() }}</span>}</div>
         </div>
         <div class="tarjeta">
+          @if (estado(); as s) {
+            <h2>Modo prueba <span class="pill" [class.prueba]="s.modo_prueba?.activo">{{ s.modo_prueba?.activo ? 'activo: desvío' : 'apagado: contacto real' }}</span></h2>
+            <p class="sec">Demo real sin tocar a terceros: la búsqueda, el ICP, el pitch con el nombre y las señales de cada empresa, el lote y las métricas corren igual,
+              pero la llamada del agente se marca a <b>{{ s.modo_prueba?.telefono || 'ningún número (se fija al desplegar con TELEFONO_PRUEBA)' }}</b> (una por lote)
+              y los correos van a <b>{{ s.modo_prueba?.correos?.join(', ') || 'ningún correo' }}</b> (identidades verificadas en SES). El intento guarda el destino original y el desviado.
+              Para contactar de verdad se despliega con MODO_PRUEBA=0 y sin destinos.</p>
+            <hr style="border:0;border-top:1px solid var(--border);margin:16px 0">
+          }
           @if (auth.rol === 'admin') {
             <h2>Empresas (administrador)</h2>
             <table><thead><tr><th>#</th><th>Nombre</th><th>Correo</th></tr></thead><tbody>@for (x of empresas(); track x.id) {<tr><td>{{ x.id }}</td><td>{{ x.nombre }}</td><td>{{ x.correo_notificaciones }}</td></tr>}</tbody></table>
@@ -65,10 +73,12 @@ export class ConfiguracionPage {
   form: any = { nombre: '', correo_notificaciones: '', dapta_api_key: '', dapta_agent_id: '', dapta_sequence_id: '', config: { canales: ['voz', 'correo'], presupuesto_lote: 20, notificar_por: ['app', 'correo'] } };
   nueva = { nombre: '', correo_notificaciones: '', icp_texto: '' };
   usuario = { email: '', empresa_id: 1, rol: 'usuario' };
+  estado = signal<any>(null);
   msg = signal(''); msgAdmin = signal(''); ocupado = signal(false);
 
   constructor() { this.cargar(); }
   cargar(): void {
+    this.api.estado().subscribe((s) => this.estado.set(s));
     this.api.empresa().subscribe((e) => { this.e.set(e); this.form = { nombre: e.nombre, correo_notificaciones: e.correo_notificaciones, dapta_api_key: '', dapta_agent_id: e.dapta_agent_id, dapta_sequence_id: e.dapta_sequence_id, config: { ...e.config } }; this.usuario.empresa_id = e.id; });
     if (this.auth.rol === 'admin') this.api.empresas().subscribe({ next: (l) => this.empresas.set(l), error: () => {} });
   }

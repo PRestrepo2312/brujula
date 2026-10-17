@@ -386,7 +386,8 @@ def api_estado(request: Request):
     b = agente.bedrock()
     from ..channels.voz_dapta import CanalVozDapta
     return {"leads": n, "ventana_ok": ok, "razon": razon, "ahora": ahora_local().isoformat(), "proxima_ventana": proxima_ventana().isoformat(),
-            "agente": {"bedrock": b.disponible, "jev": config.jev_disponible, "dapta_voz_real": CanalVozDapta(emp_id).real, "correo_real": config.correo_real}}
+            "agente": {"bedrock": b.disponible, "jev": config.jev_disponible, "dapta_voz_real": CanalVozDapta(emp_id).real, "correo_real": config.correo_real},
+            "modo_prueba": {"activo": config.modo_prueba, "telefono": config.telefono_prueba, "correos": config.correos_prueba}}
 
 
 @app.get("/api/metricas")

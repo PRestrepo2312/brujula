@@ -44,6 +44,23 @@ Parameters:
   CorsOrigins:
     Type: String
     Default: "*"
+  ModoPrueba:
+    Type: String
+    Default: "1"
+    Description: "1 = desvío: las llamadas van a TelefonoPrueba y los correos a CorreosPrueba, nunca al lead; 0 = contacto real a los leads."
+  TelefonoPrueba:
+    Type: String
+    Default: ""
+    Description: Número E.164 al que se desvían todas las llamadas en modo prueba (una por lote).
+  CorreosPrueba:
+    Type: String
+    Default: ""
+    Description: Correos verificados en SES, separados por coma, a los que se desvían los correos en modo prueba.
+  CronLotes:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: Estado de las reglas de EventBridge que lanzan el lote cada hora.
   CognitoUserPoolId:
     Type: String
     Default: ""
@@ -161,6 +178,9 @@ Resources:
           EMAIL_FROM: !Ref EmailFrom
           EXPORT_BUCKET: !Ref Exportaciones
           CORS_ORIGINS: !Ref CorsOrigins
+          MODO_PRUEBA: !Ref ModoPrueba
+          TELEFONO_PRUEBA: !Ref TelefonoPrueba
+          CORREOS_PRUEBA: !Ref CorreosPrueba
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           COGNITO_CLIENT_ID: !Ref CognitoClientId
           COGNITO_DOMAIN: !Ref CognitoDomain
@@ -226,13 +246,13 @@ Resources:
     Properties:
       Description: Siguiente lote cada hora, lunes a viernes 7 a 18 y sabados 8 a 14 (hora de Bogota = UTC-5). La app vuelve a validar la ventana.
       ScheduleExpression: cron(5 12-23 ? * MON-FRI *)
-      State: ENABLED
+      State: !Ref CronLotes
       Targets: [{Id: lote, Arn: !GetAtt DestinoLote.Arn, RoleArn: !GetAtt CronRole.Arn}]
   ReglaLoteSabado:
     Type: AWS::Events::Rule
     Properties:
       ScheduleExpression: cron(5 13-19 ? * SAT *)
-      State: ENABLED
+      State: !Ref CronLotes
       Targets: [{Id: lote, Arn: !GetAtt DestinoLote.Arn, RoleArn: !GetAtt CronRole.Arn}]
   ReglaSync:
     Type: AWS::Events::Rule

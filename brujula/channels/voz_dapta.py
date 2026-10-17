@@ -37,6 +37,7 @@ class CanalVozDapta(Canal):
         self.api_key = d.get("api_key", "")
         self.ids = {"agent_id": d.get("agent_id", ""), "sequence_id": d.get("sequence_id", "")}
         self._mcp: DaptaMCP | None = None
+        self.desviadas = 0      # modo prueba: una sola llamada de prueba por lote (una instancia del canal por lote)
 
     @property
     def real(self) -> bool:
@@ -50,16 +51,27 @@ class CanalVozDapta(Canal):
 
     def enviar(self, lead: Lead, intento: Intento) -> Resultado:
         variables = variables_voz(lead)
+        texto = json.dumps(variables, ensure_ascii=False)
+        telefono = lead.telefono
+        detalle: dict = {"variables": variables}
+        if config.modo_prueba:
+            # Desvío: el agente llama con el nombre y las señales de la empresa real, pero al número de prueba. Nunca al número del lead.
+            telefono = config.destino_prueba("voz")
+            if not telefono:
+                return Resultado(estado="omitido", costo_usd=0.0, proveedor="bloqueado", mensaje=texto, detalle={**detalle, "motivo": "modo prueba: sin TELEFONO_PRUEBA"})
+            if self.desviadas >= 1:
+                return Resultado(estado="omitido", costo_usd=0.0, proveedor="bloqueado", mensaje=texto, detalle={**detalle, "motivo": "modo prueba: una sola llamada de prueba por lote"})
+            self.desviadas += 1
+            detalle["desvio"] = {"original": lead.telefono, "destino": telefono}
         if not self.real:
-            return Resultado(estado="programado", costo_usd=config.tarifas.voz_no_contesta, ref_externa=f"sim_{lead.telefono}",
-                             proveedor="simulado", mensaje=json.dumps(variables, ensure_ascii=False), detalle={"variables": variables})
+            return Resultado(estado="programado", costo_usd=config.tarifas.voz_no_contesta, ref_externa=f"sim_{telefono}", proveedor="simulado", mensaje=texto, detalle=detalle)
         try:
-            r = self.mcp.adjuntar_contactos(self.ids["sequence_id"], [{"phone_number": lead.telefono, "name": lead.razon_social.title(), "variables": variables}])
+            r = self.mcp.adjuntar_contactos(self.ids["sequence_id"], [{"phone_number": telefono, "name": lead.razon_social.title(), "variables": variables}])
             ok = bool(r.get("verified", True)) if isinstance(r, dict) else True
-            return Resultado(estado="programado" if ok else "fallido", costo_usd=config.tarifas.voz_no_contesta, ref_externa=lead.telefono,
-                             proveedor="dapta", mensaje=json.dumps(variables, ensure_ascii=False), detalle={"variables": variables, "dapta": r if isinstance(r, dict) else {"texto": str(r)[:300]}})
+            return Resultado(estado="programado" if ok else "fallido", costo_usd=config.tarifas.voz_no_contesta, ref_externa=telefono, proveedor="dapta",
+                             mensaje=texto, detalle={**detalle, "dapta": r if isinstance(r, dict) else {"texto": str(r)[:300]}})
         except DaptaError as e:
-            return Resultado(estado="fallido", proveedor="dapta", mensaje=json.dumps(variables, ensure_ascii=False), detalle={"error": str(e)[:400]})
+            return Resultado(estado="fallido", proveedor="dapta", mensaje=texto, detalle={**detalle, "error": str(e)[:400]})
 
     # --- conciliación con los registros de llamada ---
     def costo_llamada(self, llamada: dict) -> float:

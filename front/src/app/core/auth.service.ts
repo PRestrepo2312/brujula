@@ -4,8 +4,28 @@ import { ConfigService } from './config.service';
 const CLAVE = 'brujula.sesion';
 
 interface Sesion { idToken: string; accessToken: string; expira: number; email: string; empresaId: number; rol: string }
+export interface ResultadoEntrada { ok: boolean; desafio?: 'NEW_PASSWORD_REQUIRED'; session?: string }
 
-/** Login con Cognito por la página alojada (flujo de código con PKCE). Sin Cognito configurado, modo abierto. */
+/** Errores de Cognito en español. Con PreventUserExistenceErrors, "no existe" y "clave mala" son el mismo mensaje. */
+const MENSAJES: Record<string, string> = {
+  NotAuthorizedException: 'Correo o clave incorrectos.',
+  UserNotFoundException: 'Correo o clave incorrectos.',
+  UserNotConfirmedException: 'La cuenta no está confirmada.',
+  PasswordResetRequiredException: 'Debe restablecer la clave: use "Olvidé mi clave".',
+  InvalidPasswordException: 'La clave debe tener 12 caracteres o más, con mayúscula, minúscula y número.',
+  InvalidParameterException: 'Revise los datos: la clave debe tener 12 caracteres o más, con mayúscula, minúscula y número.',
+  CodeMismatchException: 'El código no coincide.',
+  ExpiredCodeException: 'El código venció; pida uno nuevo.',
+  LimitExceededException: 'Demasiados intentos; espere unos minutos.',
+  TooManyRequestsException: 'Demasiados intentos; espere unos minutos.',
+};
+
+/**
+ * Sesión con Amazon Cognito. Dos caminos:
+ *  - formulario propio (entrar / clave nueva / recuperar): habla directo con la API de Cognito por HTTPS, la clave nunca pasa por Brújula;
+ *  - página alojada de Cognito (login): flujo de código con PKCE, por si se prefiere.
+ * Sin Cognito configurado (local) corre en modo abierto.
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private cfg = inject(ConfigService);
@@ -21,7 +41,57 @@ export class AuthService {
     try { const v = sessionStorage.getItem(CLAVE); return v ? JSON.parse(v) : null; } catch { return null; }
   }
 
-  private redirectUri(): string { return `${this.cfg.config.frontUrl.replace(/\/$/, '')}/callback`; }
+  private get base(): string { return this.cfg.config.frontUrl.replace(/\/$/, ''); }
+  private redirectUri(): string { return `${this.base}/callback`; }
+
+  // ---------- formulario propio: API de Cognito ----------
+
+  private async idp(objetivo: string, cuerpo: Record<string, unknown>): Promise<any> {
+    const r = await fetch(`https://cognito-idp.${this.cfg.config.cognito.region}.amazonaws.com/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': `AWSCognitoIdentityProviderService.${objetivo}` },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const tipo = String(datos.__type || '').split('#').pop() || '';
+      throw new Error(MENSAJES[tipo] || datos.message || `Cognito respondió ${r.status}`);
+    }
+    return datos;
+  }
+
+  async entrar(email: string, clave: string): Promise<ResultadoEntrada> {
+    const r = await this.idp('InitiateAuth', { AuthFlow: 'USER_PASSWORD_AUTH', ClientId: this.cfg.config.cognito.clientId, AuthParameters: { USERNAME: email.trim(), PASSWORD: clave } });
+    if (r.AuthenticationResult) { this.guardar(r.AuthenticationResult.IdToken, r.AuthenticationResult.AccessToken, r.AuthenticationResult.ExpiresIn); return { ok: true }; }
+    if (r.ChallengeName === 'NEW_PASSWORD_REQUIRED') return { ok: false, desafio: 'NEW_PASSWORD_REQUIRED', session: r.Session };
+    throw new Error(`Desafío de Cognito no soportado: ${r.ChallengeName}`);
+  }
+
+  /** Primer ingreso: Cognito exige cambiar la clave temporal. */
+  async claveNueva(email: string, nueva: string, session: string): Promise<void> {
+    const r = await this.idp('RespondToAuthChallenge', { ChallengeName: 'NEW_PASSWORD_REQUIRED', ClientId: this.cfg.config.cognito.clientId, Session: session,
+      ChallengeResponses: { USERNAME: email.trim(), NEW_PASSWORD: nueva } });
+    if (!r.AuthenticationResult) throw new Error('No se pudo guardar la clave nueva.');
+    this.guardar(r.AuthenticationResult.IdToken, r.AuthenticationResult.AccessToken, r.AuthenticationResult.ExpiresIn);
+  }
+
+  async olvide(email: string): Promise<void> {
+    await this.idp('ForgotPassword', { ClientId: this.cfg.config.cognito.clientId, Username: email.trim() });
+  }
+
+  async confirmarOlvide(email: string, codigo: string, nueva: string): Promise<void> {
+    await this.idp('ConfirmForgotPassword', { ClientId: this.cfg.config.cognito.clientId, Username: email.trim(), ConfirmationCode: codigo.trim(), Password: nueva });
+  }
+
+  private guardar(idToken: string, accessToken: string, expiraEn: number): void {
+    const claims = this.claims(idToken);
+    const s: Sesion = { idToken, accessToken, expira: Date.now() + (expiraEn - 60) * 1000,
+      email: claims['email'] || claims['cognito:username'] || '', empresaId: Number(claims['custom:empresa_id'] || 1), rol: claims['custom:rol'] || 'usuario' };
+    sessionStorage.setItem(CLAVE, JSON.stringify(s));
+    this.sesion.set(s);
+  }
+
+  // ---------- página alojada de Cognito (flujo de código con PKCE) ----------
 
   async login(siguiente = '/'): Promise<void> {
     const c = this.cfg.config.cognito;
@@ -43,23 +113,15 @@ export class AuthService {
     const r = await fetch(`https://${c.domain}/oauth2/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: cuerpo.toString() });
     if (!r.ok) throw new Error(`Cognito respondió ${r.status}`);
     const t = await r.json();
-    const claims = this.claims(t.id_token);
-    const s: Sesion = { idToken: t.id_token, accessToken: t.access_token, expira: Date.now() + (t.expires_in - 60) * 1000,
-      email: claims['email'] || claims['cognito:username'] || '', empresaId: Number(claims['custom:empresa_id'] || 1), rol: claims['custom:rol'] || 'usuario' };
-    sessionStorage.setItem(CLAVE, JSON.stringify(s));
+    this.guardar(t.id_token, t.access_token, t.expires_in);
     sessionStorage.removeItem('brujula.pkce');
-    this.sesion.set(s);
     return guardado.siguiente || '/';
   }
 
   logout(): void {
     sessionStorage.removeItem(CLAVE);
     this.sesion.set(null);
-    if (this.activo) {
-      const c = this.cfg.config.cognito;
-      const q = new URLSearchParams({ client_id: c.clientId, logout_uri: `${this.cfg.config.frontUrl.replace(/\/$/, '')}/login` });
-      window.location.href = `https://${c.domain}/logout?${q.toString()}`;
-    }
+    window.location.href = `${this.base}/login`;
   }
 
   private claims(jwt: string): Record<string, any> {

@@ -16,6 +16,7 @@ from .db import sesion
 from .models import Calificacion, Costo, Intento, Lead
 
 RESPONDIO = {"respondio", "contestado"}
+NO_ENVIADO = ("programado", "fallido", "omitido", "cancelado")   # intentos que no llegaron a nadie: no cuentan como contacto
 CLASIF_RESPUESTA = {"interesado", "no_interesado", "despues", "equivocado"}
 
 
@@ -67,7 +68,7 @@ def calcular(empresa_id: int = 1) -> dict:
         for d, llave in ((canales, it.canal), (cruces, f"{l.fuente_clave}|{it.canal}")):
             x = d[llave]
             x["intentos"] += 1
-            x["enviados"] += 1 if it.estado not in ("programado", "fallido") else 0
+            x["enviados"] += 1 if it.estado not in NO_ENVIADO else 0
             x["costo_usd"] += it.costo_usd
             x["fuera_ventana"] += 1 if it.fuera_ventana else 0
             if it.estado in RESPONDIO or it.clasificacion in CLASIF_RESPUESTA:
@@ -93,7 +94,7 @@ def calcular(empresa_id: int = 1) -> dict:
             x["speed_to_lead_min"] = round(sum(sp) / len(sp), 1) if sp else None
 
     # --- embudo ---
-    contactados = {it.lead_id for it in intentos if it.estado not in ("programado", "fallido")}
+    contactados = {it.lead_id for it in intentos if it.estado not in NO_ENVIADO}
     respondieron = set().union(*leads_resp_por_canal.values()) if leads_resp_por_canal else set()
     embudo = {
         "encontrados": len(leads), "del_perfil": sum(1 for l in leads if l.icp_estado == "pasa"),

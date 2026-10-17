@@ -34,7 +34,8 @@ fi
 aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --template-file deploy/cloudformation.yml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
-    DaptaApiKey="${DAPTA_API_KEY:-}" DaptaAgentId="${DAPTA_AGENT_ID:-}" DaptaSequenceId="${DAPTA_SEQUENCE_ID:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailProvider="${EMAIL_PROVIDER:-ses}" EmailFrom="${EMAIL_FROM:-Brujula <hola@example.com>}"
+    DaptaApiKey="${DAPTA_API_KEY:-}" DaptaAgentId="${DAPTA_AGENT_ID:-}" DaptaSequenceId="${DAPTA_SEQUENCE_ID:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailProvider="${EMAIL_PROVIDER:-ses}" EmailFrom="${EMAIL_FROM:-Brujula <hola@example.com>}" \
+    ModoPrueba="${MODO_PRUEBA:-1}" TelefonoPrueba="${TELEFONO_PRUEBA:-}" CorreosPrueba="${CORREOS_PRUEBA:-}" CronLotes="${CRON_LOTES:-ENABLED}"
 
 URL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name "$PILA" --query "Stacks[0].Outputs[?OutputKey=='Url'].OutputValue" --output text)
 URL="${URL%/}"
@@ -51,6 +52,7 @@ aws cloudformation deploy --profile "$PERFIL" --region "$REGION" --stack-name "$
   --capabilities CAPABILITY_IAM \
   --parameter-overrides ImageUri="$ECR/$REPO:$TAG" DbPassword="$DB_PASSWORD" CronKey="$CRON_KEY" \
     DaptaApiKey="${DAPTA_API_KEY:-}" DaptaAgentId="${DAPTA_AGENT_ID:-}" DaptaSequenceId="${DAPTA_SEQUENCE_ID:-}" OpenRouterApiKey="${OPENROUTER_API_KEY:-}" ResendApiKey="${RESEND_API_KEY:-}" EmailProvider="${EMAIL_PROVIDER:-ses}" EmailFrom="${EMAIL_FROM:-Brujula <hola@example.com>}" \
+    ModoPrueba="${MODO_PRUEBA:-1}" TelefonoPrueba="${TELEFONO_PRUEBA:-}" CorreosPrueba="${CORREOS_PRUEBA:-}" CronLotes="${CRON_LOTES:-ENABLED}" \
     CognitoUserPoolId="$POOL" CognitoClientId="$CLIENTE" CognitoDomain="$DOMINIO" SessionSecret="$SESION" PublicBaseUrl="$URL" \
     CorsOrigins="${CORS_ORIGINS:-$URL,http://localhost:4200}"
 

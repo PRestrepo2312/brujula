@@ -31,10 +31,12 @@ def _brazos(s, empresa_id: int) -> list[Brazo]:
     lead_por_id = {l.id: l for l in s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.duplicado_de.is_(None))).all()}
     calificados = {c.lead_id for c in s.exec(select(Calificacion).where(Calificacion.empresa_id == empresa_id, Calificacion.resultado == "calificado")).all()}
     hay_calificaciones = bool(calificados)
+    from .config import config
     brazos: dict[str, Brazo] = {}
     for l in leads:
         for c in canales:
-            if c in (l.canales or []):
+            # En modo prueba solo cuentan los canales que tienen destino de desvío.
+            if c in (l.canales or []) and (not config.modo_prueba or config.destino_prueba(c)):
                 b = brazos.setdefault(f"{l.fuente_clave}|{c}", Brazo(l.fuente_clave, c))
                 b.disponibles += 1
     for it in intentos:
@@ -237,6 +239,10 @@ def pasar_a_dapta_los_que_respondieron(empresa_id: int = 1) -> dict:
             it.detalle = {**it.detalle, **r.detalle}
             it.enviado_en = datetime.utcnow()
             s.add(it)
+            if r.estado == "omitido":      # modo prueba: no entra al calificador
+                s.commit()
+                omitidos += 1
+                continue
             s.add(Calificacion(empresa_id=empresa_id, lead_id=l.id, intento_id=it.id, resultado="pendiente", ref_externa=r.ref_externa, datos={"via": r.proveedor}))
             s.commit()
             enviados += 1

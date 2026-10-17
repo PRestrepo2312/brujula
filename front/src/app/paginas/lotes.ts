@@ -13,6 +13,7 @@ import { AuthService } from '../core/auth.service';
       <div class="tarjeta">
         <h2>Nuevo lote</h2>
         @if (estado(); as e) {
+          @if (e.modo_prueba?.activo) {<div class="aviso">Modo prueba: el lote se arma con los leads reales (nombre, señales y pitch), pero la llamada se desvía a {{ e.modo_prueba.telefono || 'ningún número (falta TELEFONO_PRUEBA)' }} (una por lote) y los correos a {{ e.modo_prueba.correos.join(', ') || 'ningún correo' }}. Ningún lead recibe nada.</div>}
           @if (!e.ventana_ok) {<div class="aviso">Fuera de la ventana de la Ley 2300 ({{ e.razon }}). Para contactar igual escriba el motivo: queda en la bitácora con su usuario ({{ auth.email }}).</div>}
         }
         <div class="fila c2" style="margin:0 0 10px">

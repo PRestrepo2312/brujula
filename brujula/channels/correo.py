@@ -33,13 +33,22 @@ class CanalCorreo(Canal):
             html = "<p>" + texto.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
         asunto = asunto_correo(lead)
         detalle = {"token": token, "asunto": asunto}
+        destino = lead.correo
+        if config.modo_prueba:
+            # Desvío: el correo lleva el pitch de la empresa real, pero va a un correo verificado del equipo. Nunca al correo del lead.
+            destino = config.destino_prueba("correo", lead.id or 0)
+            if not destino:
+                return Resultado(estado="omitido", costo_usd=0.0, proveedor="bloqueado", mensaje=texto, detalle={**detalle, "motivo": "modo prueba: sin CORREOS_PRUEBA"})
+            detalle["desvio"] = {"original": lead.correo, "destino": destino}
+            texto = f"[Prueba: este correo iba para {lead.correo}]\n\n{texto}"
+            html = f"<p><i>Prueba: este correo iba para {lead.correo}</i></p>{html}"
         if not self.real:
             return Resultado(estado="enviado", costo_usd=config.tarifas.correo, ref_externa=f"sim_{token}", proveedor="simulado",
                              mensaje=texto, detalle=detalle)
         if config.email_provider == "ses":
-            return self._enviar_ses(lead, asunto, texto, html, urls, detalle)
+            return self._enviar_ses(destino, asunto, texto, html, urls, detalle)
         cuerpo = {
-            "from": config.email_from, "to": [lead.correo], "subject": asunto, "text": texto, "html": html,
+            "from": config.email_from, "to": [destino], "subject": asunto, "text": texto, "html": html,
             "headers": {"List-Unsubscribe": f"<{urls['baja']}>"},
             "tags": [{"name": "intento", "value": str(intento.id or 0)}],
         }
@@ -53,13 +62,13 @@ class CanalCorreo(Canal):
         except httpx.HTTPError as e:
             return Resultado(estado="fallido", proveedor="resend", mensaje=texto, detalle={**detalle, "error": str(e)[:300]})
 
-    def _enviar_ses(self, lead: Lead, asunto: str, texto: str, html: str, urls: dict, detalle: dict) -> Resultado:
-        """Amazon SES (exige identidad verificada y salida del sandbox). Los eventos llegan por SNS a /webhook/ses."""
+    def _enviar_ses(self, destino: str, asunto: str, texto: str, html: str, urls: dict, detalle: dict) -> Resultado:
+        """Amazon SES (exige identidad verificada; en el sandbox también el destinatario). Los eventos llegan por SNS a /webhook/ses."""
         try:
             import boto3
             ses = boto3.client("sesv2", region_name=config.aws_region)
             r = ses.send_email(
-                FromEmailAddress=config.email_from, Destination={"ToAddresses": [lead.correo]},
+                FromEmailAddress=config.email_from, Destination={"ToAddresses": [destino]},
                 Content={"Simple": {"Subject": {"Data": asunto, "Charset": "UTF-8"},
                                     "Body": {"Text": {"Data": texto, "Charset": "UTF-8"}, "Html": {"Data": html, "Charset": "UTF-8"}},
                                     "Headers": [{"Name": "List-Unsubscribe", "Value": f"<{urls['baja']}>"}]}},

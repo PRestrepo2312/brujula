@@ -76,7 +76,25 @@ class Config:
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL", "http://localhost:8000"))
     socrata_app_token: str = field(default_factory=lambda: _env("SOCRATA_APP_TOKEN"))
     denue_token: str = field(default_factory=lambda: _env("DENUE_TOKEN"))
+    # Modo prueba (demo real sin terceros): el ciclo corre completo con los leads reales (nombre, señales, pitch, lote, métricas),
+    # pero la llamada se desvía a TELEFONO_PRUEBA y el correo a CORREOS_PRUEBA (identidades verificadas en SES).
+    # Sin destino para un canal, ese canal se omite. Se activa con MODO_PRUEBA=1 o con cualquier destino definido.
+    solo_prueba: bool = field(default_factory=lambda: _env("MODO_PRUEBA", "0") not in ("0", "false", "no", ""))
+    telefono_prueba: str = field(default_factory=lambda: _env("TELEFONO_PRUEBA").replace(" ", "").replace("-", ""))
+    correos_prueba: list[str] = field(default_factory=lambda: [x.strip().lower() for x in _env("CORREOS_PRUEBA").split(",") if x.strip()])
     tarifas: Tarifas = field(default_factory=Tarifas)
+
+    @property
+    def modo_prueba(self) -> bool:
+        return self.solo_prueba or bool(self.telefono_prueba) or bool(self.correos_prueba)
+
+    def destino_prueba(self, canal: str, semilla: int = 0) -> str | None:
+        """A dónde se desvía un contacto en modo prueba: el número de prueba, o uno de los correos verificados (rotando por lead)."""
+        if canal in ("voz", "whatsapp"):
+            return self.telefono_prueba or None
+        if canal == "correo" and self.correos_prueba:
+            return self.correos_prueba[semilla % len(self.correos_prueba)]
+        return None
 
     @property
     def jev_disponible(self) -> bool:

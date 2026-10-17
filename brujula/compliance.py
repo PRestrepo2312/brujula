@@ -100,7 +100,10 @@ def cargar_rne_csv(ruta: str | Path) -> int:
 
 
 def verificar_lead(lead: Lead, canal: str) -> tuple[bool, str]:
-    """Qué impide contactar a un lead por un canal. Solo empresas, con canal y sin exclusión."""
+    """Qué impide contactar a un lead por un canal. Solo empresas, con canal y sin exclusión; en modo prueba, solo canales con desvío."""
+    from .config import config
+    if config.modo_prueba and not config.destino_prueba(canal):
+        return False, f"modo prueba: sin destino de desvío para {canal}"
     if lead.pais == "CO" and lead.identificacion and lead.identificacion[0] not in "89":
         return False, "la identificación no es de persona jurídica"
     if canal in ("voz", "whatsapp") and not lead.telefono:
