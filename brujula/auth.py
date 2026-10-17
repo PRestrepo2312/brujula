@@ -113,7 +113,7 @@ def usuario_desde(request, cognito: Cognito) -> dict | None:
 
     Trae empresa_id y rol (admin ve todas las empresas; usuario solo la suya)."""
     if not cognito.activo:
-        return {"email": "local", "modo": "abierto", "empresa_id": 1, "rol": "admin"}
+        return {"email": "local", "modo": "abierto", "empresa_id": 1, "rol": "superadmin"}   # en local, quien corre el servidor es la plataforma
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         try:

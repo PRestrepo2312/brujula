@@ -49,6 +49,10 @@ Con `MODO_PRUEBA=1` (valor con el que se despliega) todo el ciclo corre con los 
 
 El override de horario por usuario (Ley 2300) también abre el horario de la secuencia de Dapta: al enviar un lote con override que lleve llamadas, `ejecutar_lote` amplía el día de hoy en la secuencia (06:00 AM a 11:59 PM, hora Bogotá) y lo anota en la bitácora (`override_dapta`, con usuario, motivo y hora de vencimiento); dos horas después, la sincronización restaura el horario legal (`override_dapta_cierre`).
 
+## Empresas, usuarios y roles
+
+Cada empresa es un espacio aparte (`empresa_id` en leads, lotes, intentos, calificaciones, costos, bitácora y notificaciones): sus usuarios solo ven lo suyo. Tres roles en Cognito (`custom:rol`): **usuario** trabaja con los leads de su empresa; **admin** además configura la empresa (ICP, canales, Dapta, horario) y agrega personas a su empresa (`POST /api/usuarios`, siempre dentro de la suya); **superadmin** es la plataforma: crea empresas (`POST /api/empresas`), crea usuarios en cualquiera y puede mirar otra empresa con `?empresa=ID`. Las cuentas las crea un admin o el superadmin (Cognito solo permite creación por administrador); el nuevo usuario recibe una clave temporal por correo y entra directo al espacio de su empresa. Cada alta queda en la bitácora.
+
 ## Empresas, agente y notificaciones
 
 Brújula es multiempresa: cada cuenta (empresa) tiene su ICP, sus canales, su presupuesto por lote, su Dapta y su correo de notificaciones; leads, lotes, costos, bajas y bitácora están aislados por `empresa_id`. Los usuarios viven en Cognito con los atributos `custom:empresa_id` y `custom:rol` (`admin` ve todas las empresas con `?empresa=ID`; `usuario` solo la suya). La empresa 1 es la de demostración y existe siempre.

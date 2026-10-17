@@ -35,7 +35,7 @@ export class AuthService {
   get autenticado(): boolean { return !this.activo || (!!this.sesion() && this.sesion()!.expira > Date.now()); }
   get token(): string | null { return this.sesion()?.idToken ?? null; }
   get email(): string { return this.activo ? (this.sesion()?.email ?? '') : 'local'; }
-  get rol(): string { return this.activo ? (this.sesion()?.rol ?? 'usuario') : 'admin'; }
+  get rol(): string { return this.activo ? (this.sesion()?.rol ?? 'usuario') : 'superadmin'; }
 
   private leer(): Sesion | null {
     try { const v = sessionStorage.getItem(CLAVE); return v ? JSON.parse(v) : null; } catch { return null; }

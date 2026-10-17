@@ -34,6 +34,11 @@ def asegurar_demo() -> Empresa:
             s.add(e)
             s.commit()
             s.refresh(e)
+        if s.get_bind().dialect.name == "postgresql":
+            # La demo se inserta con id fijo: la secuencia de PostgreSQL debe quedar por encima para que la siguiente empresa no choque.
+            from sqlalchemy import text
+            s.exec(text("SELECT setval(pg_get_serial_sequence('empresa', 'id'), GREATEST((SELECT MAX(id) FROM empresa), 1))"))
+            s.commit()
         return e
 
 

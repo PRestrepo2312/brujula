@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlmodel import func, select
 
 from .. import agente, auth, empresas, metrics, notificaciones, pipeline, storage
-from ..compliance import ahora_local, cargar_rne_csv, proxima_ventana, ventana_permitida
+from ..compliance import ahora_local, anotar, cargar_rne_csv, proxima_ventana, ventana_permitida
 from ..config import config
 from ..db import crear_tablas, sesion
 from ..icp import ICP
@@ -112,13 +112,13 @@ async def exigir_login(request: Request, call_next):
 
 
 def usuario_de(request: Request) -> dict:
-    return getattr(request.state, "usuario", None) or {"email": "local", "empresa_id": 1, "rol": "admin"}
+    return getattr(request.state, "usuario", None) or {"email": "local", "empresa_id": 1, "rol": "superadmin"}
 
 
 def empresa_de(request: Request) -> int:
-    """La empresa del usuario; un admin puede mirar otra con ?empresa=ID."""
+    """La empresa del usuario; solo el superadmin de la plataforma puede mirar otra con ?empresa=ID."""
     u = usuario_de(request)
-    if u.get("rol") == "admin":
+    if u.get("rol") == "superadmin":
         q = request.query_params.get("empresa")
         if q and q.isdigit():
             return int(q)
@@ -126,7 +126,13 @@ def empresa_de(request: Request) -> int:
 
 
 def es_admin(request: Request) -> bool:
-    return usuario_de(request).get("rol") == "admin"
+    """Administrador de su empresa (crea usuarios de su empresa) o superadmin de la plataforma."""
+    return usuario_de(request).get("rol") in ("admin", "superadmin")
+
+
+def es_superadmin(request: Request) -> bool:
+    """Superadmin de la plataforma: ve todas las empresas, las crea y crea usuarios en cualquiera."""
+    return usuario_de(request).get("rol") == "superadmin"
 
 
 def ctx(request: Request, **extra) -> dict:
@@ -572,15 +578,15 @@ def api_empresa_cambiar(request: Request, entrada: EmpresaCambio):
 
 @app.get("/api/empresas")
 def api_empresas(request: Request):
-    if not es_admin(request):
-        return JSONResponse({"error": "solo administradores"}, status_code=403)
+    if not es_superadmin(request):
+        return JSONResponse({"error": "solo el superadmin de la plataforma"}, status_code=403)
     return [empresas.publico(e) for e in empresas.listar()]
 
 
 @app.post("/api/empresas")
 def api_empresa_crear(request: Request, entrada: EmpresaEntrada):
-    if not es_admin(request):
-        return JSONResponse({"error": "solo administradores"}, status_code=403)
+    if not es_superadmin(request):
+        return JSONResponse({"error": "solo el superadmin de la plataforma"}, status_code=403)
     icp, info = agente.interpretar_icp(entrada.icp_texto) if entrada.icp_texto else (ICP(), {"motor": "defecto"})
     e = empresas.crear(entrada.nombre, entrada.correo_notificaciones, entrada.icp_texto, icp.__dict__)
     return {**empresas.publico(e), "icp_motor": info.get("motor")}
@@ -588,19 +594,28 @@ def api_empresa_crear(request: Request, entrada: EmpresaEntrada):
 
 @app.post("/api/usuarios")
 def api_usuario_crear(request: Request, entrada: UsuarioEntrada):
-    """Crea un usuario en Cognito (solo admin) con su empresa y rol. Cognito le envía la contraseña temporal por correo."""
+    """Crea un usuario en Cognito con su empresa y rol. Un admin solo agrega gente a su propia empresa (usuario o admin);
+    el superadmin a cualquier empresa. Cognito le envía la contraseña temporal por correo."""
     if not es_admin(request):
         return JSONResponse({"error": "solo administradores"}, status_code=403)
     if not cognito.activo:
         return JSONResponse({"error": "Cognito no está configurado"}, status_code=400)
+    empresa_id, rol = entrada.empresa_id, entrada.rol
+    if not es_superadmin(request):
+        empresa_id = empresa_de(request)
+        if rol not in ("usuario", "admin"):
+            rol = "usuario"
+    elif rol not in ("usuario", "admin", "superadmin"):
+        rol = "usuario"
     import boto3
     c = boto3.client("cognito-idp", region_name=config.aws_region)
     try:
         c.admin_create_user(UserPoolId=cognito.pool_id, Username=entrada.email,
                             UserAttributes=[{"Name": "email", "Value": entrada.email}, {"Name": "email_verified", "Value": "true"},
-                                            {"Name": "custom:empresa_id", "Value": str(entrada.empresa_id)}, {"Name": "custom:rol", "Value": entrada.rol}],
+                                            {"Name": "custom:empresa_id", "Value": str(empresa_id)}, {"Name": "custom:rol", "Value": rol}],
                             DesiredDeliveryMediums=["EMAIL"])
-        return {"ok": True, "email": entrada.email, "empresa_id": entrada.empresa_id, "rol": entrada.rol}
+        anotar("usuario", f"Usuario {entrada.email} creado con rol {rol} por {usuario_de(request).get('email')}", empresa_id, rol=rol)
+        return {"ok": True, "email": entrada.email, "empresa_id": empresa_id, "rol": rol}
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)[:300]}, status_code=400)
 

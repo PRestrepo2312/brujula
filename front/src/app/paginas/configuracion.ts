@@ -50,22 +50,27 @@ import { AuthService } from '../core/auth.service';
               Para contactar de verdad se despliega con MODO_PRUEBA=0 y sin destinos.</p>
             <hr style="border:0;border-top:1px solid var(--border);margin:16px 0">
           }
-          @if (auth.rol === 'admin') {
-            <h2>Empresas (administrador)</h2>
+          <h2>Su cuenta</h2>
+          <p>{{ auth.email }} · {{ auth.rol === 'superadmin' ? 'superadmin de la plataforma' : auth.rol === 'admin' ? 'administrador de esta empresa' : 'usuario de esta empresa' }}.
+            Cada empresa es un espacio aparte: sus leads, lotes, métricas y configuración solo los ven sus usuarios.</p>
+          @if (auth.rol === 'superadmin') {
+            <h2 style="margin-top:14px">Empresas (superadmin)</h2>
             <table><thead><tr><th>#</th><th>Nombre</th><th>Correo</th></tr></thead><tbody>@for (x of empresas(); track x.id) {<tr><td>{{ x.id }}</td><td>{{ x.nombre }}</td><td>{{ x.correo_notificaciones }}</td></tr>}</tbody></table>
+            <p class="sec">Para mirar otra empresa agregue <code>?empresa=ID</code> a la dirección.</p>
             <h2 style="margin-top:14px">Nueva empresa</h2>
             <div class="fila c2" style="margin:0 0 8px"><div><label>Nombre</label><input [(ngModel)]="nueva.nombre"></div><div><label>Correo</label><input [(ngModel)]="nueva.correo_notificaciones"></div></div>
             <div><label>Cliente ideal (en sus palabras)</label><textarea rows="2" [(ngModel)]="nueva.icp_texto"></textarea></div>
             <div class="acciones" style="margin-top:8px"><button class="boton sec" (click)="crearEmpresa()" [disabled]="!nueva.nombre || ocupado()">Crear empresa</button></div>
-            <h2 style="margin-top:14px">Nuevo usuario (Cognito)</h2>
+          }
+          @if (auth.rol === 'admin' || auth.rol === 'superadmin') {
+            <h2 style="margin-top:14px">Agregar una persona {{ auth.rol === 'superadmin' ? '' : 'a mi empresa' }}</h2>
+            <p class="sec">Recibe por correo una clave temporal y entra directo al espacio de la empresa. "usuario" trabaja con los leads; "admin" además configura y agrega gente.</p>
             <div class="fila c3" style="margin:0 0 8px">
               <div><label>Correo</label><input [(ngModel)]="usuario.email"></div>
-              <div><label>Empresa</label><input type="number" [(ngModel)]="usuario.empresa_id"></div>
-              <div><label>Rol</label><select [(ngModel)]="usuario.rol"><option value="usuario">usuario</option><option value="admin">admin</option></select></div>
+              @if (auth.rol === 'superadmin') {<div><label>Empresa (id)</label><input type="number" [(ngModel)]="usuario.empresa_id"></div>}
+              <div><label>Rol</label><select [(ngModel)]="usuario.rol"><option value="usuario">usuario</option><option value="admin">admin</option>@if (auth.rol === 'superadmin') {<option value="superadmin">superadmin</option>}</select></div>
             </div>
             <div class="acciones"><button class="boton sec" (click)="crearUsuario()" [disabled]="!usuario.email || ocupado()">Crear usuario</button>@if (msgAdmin()) {<span class="sec">{{ msgAdmin() }}</span>}</div>
-          } @else {
-            <h2>Su cuenta</h2><p>{{ auth.email }} · rol {{ auth.rol }}</p>
           }
         </div>
       </div>
@@ -87,7 +92,7 @@ export class ConfiguracionPage {
   cargar(): void {
     this.api.estado().subscribe((s) => this.estado.set(s));
     this.api.empresa().subscribe((e) => { this.e.set(e); this.form = { nombre: e.nombre, correo_notificaciones: e.correo_notificaciones, dapta_api_key: '', dapta_agent_id: e.dapta_agent_id, dapta_sequence_id: e.dapta_sequence_id, config: { ...e.config } }; this.usuario.empresa_id = e.id; });
-    if (this.auth.rol === 'admin') this.api.empresas().subscribe({ next: (l) => this.empresas.set(l), error: () => {} });
+    if (this.auth.rol === 'superadmin') this.api.empresas().subscribe({ next: (l) => this.empresas.set(l), error: () => {} });
   }
   alternar(c: string): void { const l = this.form.config.canales as string[]; this.form.config.canales = l.includes(c) ? l.filter((x) => x !== c) : [...l, c]; }
   alternarAviso(c: string): void { const l = this.form.config.notificar_por as string[]; this.form.config.notificar_por = l.includes(c) ? l.filter((x) => x !== c) : [...l, c]; }
