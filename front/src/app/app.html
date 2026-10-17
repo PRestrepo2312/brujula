@@ -1,26 +1,40 @@
-<header class="cab">
-  <a class="marca" routerLink="/"><i></i> BRÚJULA</a>
-  @if (auth.autenticado) {
-    <nav>
-      <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">Tablero</a>
-      <a routerLink="/buscar" routerLinkActive="activo">Buscar</a>
-      <a routerLink="/leads" routerLinkActive="activo">Leads</a>
-      <a routerLink="/lotes" routerLinkActive="activo">Lotes</a>
-      <a routerLink="/notificaciones" routerLinkActive="activo">Notificaciones @if (noLeidas() > 0) {<span class="globo">{{ noLeidas() }}</span>}</a>
-      <a routerLink="/configuracion" routerLinkActive="activo">Configuración</a>
-    </nav>
-    <div class="derecha">
-      @if (estado(); as e) {
-        @if (e.modo_prueba?.activo) {<span class="pill prueba" title="Las llamadas se desvían al número de prueba y los correos a los correos verificados del equipo; ningún lead recibe nada">MODO PRUEBA → {{ e.modo_prueba.telefono || 'sin número' }}</span>}
-        <span class="ventana" [class.ok]="e.ventana_ok" [class.no]="!e.ventana_ok">{{ e.ventana_ok ? 'Se puede contactar' : 'Fuera de ventana · ' + e.razon }}</span>
-        @if (e.respetar_ley_2300 === false) {<span class="ventana no" title="La empresa desactivó el horario legal en Configuración">Ley 2300 desactivada</span>}
-        <span class="agente" [title]="'Agente de texto: ' + e.agente.llm + (e.agente.llm_error ? ' · ' + e.agente.llm_error : '')">
-          <b [class.on]="e.agente.llm !== 'reglas'">{{ e.agente.llm === 'reglas' ? 'LLM: reglas' : e.agente.llm }}</b> <b [class.on]="e.agente.jev">Jev</b> <b [class.on]="e.agente.dapta_voz_real">Dapta</b>
-        </span>
-      }
-      <span class="usuario">{{ auth.email }}</span>
-      @if (auth.activo) {<a class="salir" (click)="auth.logout()">salir</a>} @else {<span class="ventana no">sin login (local)</span>}
+@if (auth.autenticado && !enEntrada()) {
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" routerLink="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9.5"/><path d="M15.5 8.5 13.6 13.6 8.5 15.5l1.9-5.1z" fill="#9FE1C8" stroke="none"/></svg>
+        BRÚJULA
+      </a>
+      <nav class="nav">
+        <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>Tablero</a>
+        <a routerLink="/buscar" routerLinkActive="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>Buscar</a>
+        <a routerLink="/leads" routerLinkActive="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20c0-3.3 2.7-6 6-6h4c3.3 0 6 2.7 6 6"/><circle cx="12" cy="8" r="4"/></svg>Leads</a>
+        <a routerLink="/lotes" routerLinkActive="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>Lotes</a>
+        <a routerLink="/notificaciones" routerLinkActive="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>Notificaciones @if (noLeidas() > 0) {<span class="badge">{{ noLeidas() }}</span>}</a>
+        <a routerLink="/configuracion" routerLinkActive="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Configuración</a>
+      </nav>
+      <div class="side-foot">
+        <div class="who" [title]="auth.email">{{ auth.email }}</div>
+        <div class="rol">{{ rolTexto() }}</div>
+        @if (auth.activo) {<a (click)="auth.logout()">Cerrar sesión</a>} @else {<span class="rol">modo local, sin login</span>}
+      </div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        @if (estado(); as e) {
+          @if (e.modo_prueba?.activo) {<span class="status warn" title="Las llamadas se desvían al número de prueba y los correos a los correos del equipo; ningún lead recibe nada"><i></i>Modo prueba → {{ e.modo_prueba.telefono || 'sin número' }}</span>}
+          <span class="status" [class.ok]="e.ventana_ok" [class.off]="!e.ventana_ok"><i></i>{{ e.ventana_ok ? 'Horario legal: se puede contactar' : 'Fuera de horario · ' + e.razon }}</span>
+          @if (e.respetar_ley_2300 === false) {<span class="status off" title="La empresa desactivó el horario legal en Configuración"><i></i>Ley 2300 desactivada</span>}
+          <span class="spacer"></span>
+          <span class="status" [class.ok]="e.agente.llm !== 'reglas'" [title]="'Agente de texto: ' + e.agente.llm + (e.agente.llm_error ? ' · ' + e.agente.llm_error : '')"><i></i>{{ e.agente.llm === 'reglas' ? 'Agente: reglas' : 'Agente: ' + e.agente.llm }}</span>
+          <span class="status" [class.ok]="e.agente.jev" title="Jev (TypeSafe) por OpenRouter"><i></i>Jev</span>
+          <span class="status" [class.ok]="e.agente.dapta_voz_real" title="Agente de voz de Dapta"><i></i>Dapta</span>
+          <span class="status" [class.ok]="e.agente.correo_real" title="Correo por SES"><i></i>Correo</span>
+        }
+      </header>
+      <main class="content"><router-outlet /></main>
     </div>
-  }
-</header>
-<main><router-outlet /></main>
+  </div>
+} @else {
+  <router-outlet />
+}

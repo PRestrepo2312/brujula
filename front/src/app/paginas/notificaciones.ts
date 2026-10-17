@@ -6,14 +6,18 @@ import { ApiService } from '../core/api.service';
   selector: 'pagina-notificaciones',
   imports: [RouterLink],
   template: `
-    <h1>Notificaciones</h1>
-    <div class="acciones" style="margin:10px 0"><button class="boton gris" (click)="leerTodas()">Marcar todas como leídas</button></div>
-    <div class="tarjeta">
-      <table><thead><tr><th>Cuándo</th><th>Tipo</th><th>Mensaje</th><th>Correo</th></tr></thead>
+    <div class="page-head">
+      <div><h1>Notificaciones</h1><p>Búsquedas que terminan, lotes que salen, leads que responden y calificaciones de Dapta.</p></div>
+      <button class="btn btn-secondary" (click)="leerTodas()">Marcar todas como leídas</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Cuándo</th><th>Tipo</th><th>Mensaje</th><th>Correo</th></tr></thead>
         <tbody>@for (n of lista(); track n.id) {
-          <tr [style.fontWeight]="n.leida ? 400 : 600"><td class="sec" style="white-space:nowrap">{{ n.creado_en }}</td><td><span class="pill" [class]="'pill ' + clase(n.tipo)">{{ n.tipo }}</span></td>
-            <td>{{ n.mensaje }} @if (n.lead_id) {<a [routerLink]="['/leads', n.lead_id]">ver lead</a>}</td><td>{{ n.enviada_correo ? 'enviado' : '–' }}</td></tr>
-        } @empty {<tr><td colspan="4" class="sec">Nada todavía. Las notificaciones llegan cuando termina una búsqueda, sale un lote, un lead responde o Dapta lo califica.</td></tr>}</tbody></table>
+          <tr [style.fontWeight]="n.leida ? 400 : 600"><td class="small muted" style="white-space:nowrap">{{ fecha(n.creado_en) }}</td><td><span class="tag" [class]="'tag ' + clase(n.tipo)">{{ n.tipo }}</span></td>
+            <td>{{ n.mensaje }} @if (n.lead_id) {<a [routerLink]="['/leads', n.lead_id]">ver lead</a>}</td><td class="small muted">{{ n.enviada_correo ? 'enviado' : '–' }}</td></tr>
+        } @empty {<tr><td colspan="4"><div class="empty"><b>Nada todavía</b>Las notificaciones llegan cuando termina una búsqueda, sale un lote, un lead responde o Dapta lo califica.</div></td></tr>}</tbody>
+      </table></div>
     </div>
   `,
 })
@@ -23,5 +27,6 @@ export class NotificacionesPage {
   constructor() { this.cargar(); }
   cargar(): void { this.api.notificaciones(false).subscribe((n) => this.lista.set(n)); }
   leerTodas(): void { this.api.leerNotificaciones().subscribe(() => this.cargar()); }
-  clase(t: string): string { return t === 'calificado' ? 'pasa' : t === 'baja' ? 'descarta' : t === 'respondio' ? 'revisar' : ''; }
+  clase(t: string): string { return t === 'calificado' ? 'tag-ok' : t === 'baja' || t === 'no_calificado' ? 'tag-danger' : t === 'respondio' ? 'tag-accent' : t === 'lote' || t === 'busqueda' ? 'tag-info' : ''; }
+  fecha(iso: string | null): string { if (!iso) return '–'; try { return new Date(iso + (iso.endsWith('Z') ? '' : 'Z')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }); } catch { return iso; } }
 }

@@ -4,9 +4,9 @@ import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'pagina-callback',
-  template: `<div class="tarjeta" style="max-width:520px;margin:60px auto;text-align:center">
-    @if (error()) {<div class="aviso">{{ error() }}</div><a href="/login">Volver a intentar</a>} @else {<p>Entrando…</p>}
-  </div>`,
+  template: `<div class="auth-form" style="min-height:100vh"><div class="auth-card card">
+    @if (error()) {<div class="banner banner-danger">{{ error() }}</div><a href="login">Volver a intentar</a>} @else {<p class="muted">Entrando…</p>}
+  </div></div>`,
 })
 export class CallbackPage {
   private auth = inject(AuthService);
