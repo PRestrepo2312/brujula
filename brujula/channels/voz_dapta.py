@@ -9,7 +9,9 @@ import json
 from pathlib import Path
 
 from ..config import RAIZ, config
-from ..dapta_mcp import DaptaError, DaptaMCP
+from ..dapta_mcp import REGLAS_LEY_2300, DaptaError, DaptaMCP
+
+DIAS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 from ..mensajes import variables_voz
 from ..models import Intento, Lead
 from .base import Canal, Resultado
@@ -72,6 +74,19 @@ class CanalVozDapta(Canal):
                              mensaje=texto, detalle={**detalle, "dapta": r if isinstance(r, dict) else {"texto": str(r)[:300]}})
         except DaptaError as e:
             return Resultado(estado="fallido", proveedor="dapta", mensaje=texto, detalle={**detalle, "error": str(e)[:400]})
+
+    # --- override de horario: la secuencia de Dapta tiene su propio horario (Ley 2300) y también hay que abrirlo ---
+    def abrir_ventana_hoy(self, hasta: str = "11:59 PM") -> dict:
+        """Override por usuario: abre el horario de la secuencia hoy (hora Bogotá) para que llame ya; restaurar_ventana_legal lo devuelve."""
+        from copy import deepcopy
+        from ..compliance import ahora_local
+        reglas = deepcopy(REGLAS_LEY_2300)
+        hoy = DIAS[ahora_local().weekday()]
+        reglas["schedule"][hoy] = {"enabled": True, "timeSlots": [{"startTime": "06:00 AM", "endTime": hasta}]}
+        return self.mcp.reglas_secuencia(self.ids["sequence_id"], reglas)
+
+    def restaurar_ventana_legal(self) -> dict:
+        return self.mcp.reglas_secuencia(self.ids["sequence_id"], REGLAS_LEY_2300)
 
     # --- conciliación con los registros de llamada ---
     def costo_llamada(self, llamada: dict) -> float:

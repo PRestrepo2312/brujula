@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlmodel import select
 
@@ -13,7 +13,7 @@ from .compliance import anotar, esta_excluido, registrar_exclusion, ventana_perm
 from .config import config
 from .db import sesion
 from .empresas import config_de, dapta_de, icp_de
-from .models import Calificacion, Intento, Lead, Lote
+from .models import Bitacora, Calificacion, Intento, Lead, Lote
 from .notificaciones import notificar
 
 CANALES_POSIBLES = ("voz", "correo")   # whatsapp entra cuando exista línea aprobada
@@ -132,8 +132,37 @@ def ejecutar_lote(lote_id: int) -> dict:
             s.add(it)
             resumen[f"{it.canal}:{r.estado}:{r.proveedor}"] += 1
         s.commit()
+        fuera, motivo, usuario = lote.fuera_ventana, lote.override_motivo, lote.override_usuario
+    if fuera and resumen.get("voz:programado:dapta", 0) > 0:
+        # El override del usuario también abre el horario de la secuencia de Dapta (dos horas); sincronizar lo restaura.
+        try:
+            r = canales["voz"].abrir_ventana_hoy()
+            hasta = (datetime.utcnow() + timedelta(hours=2)).isoformat()
+            anotar("override_dapta", f"Override del lote {lote_id}: la secuencia de Dapta puede llamar hoy fuera del horario de la Ley 2300; se restaura en dos horas",
+                   empresa_id, lote_id=lote_id, hasta=hasta, usuario=usuario, motivo=motivo, dapta_verified=r.get("verified") if isinstance(r, dict) else None)
+        except Exception as e:  # noqa: BLE001
+            anotar("error", f"no se pudo abrir el horario de la secuencia de Dapta: {e}"[:300], empresa_id, lote_id=lote_id)
     notificar(empresa_id, "lote", f"Lote {lote_id} enviado: " + ", ".join(f"{k} {v}" for k, v in resumen.items()))
     return {"lote_id": lote_id, "resultado": dict(resumen)}
+
+
+def restaurar_ventana_dapta_si_vencio(voz, empresa_id: int = 1) -> bool:
+    """Si un override abrió el horario de la secuencia de Dapta y ya pasaron las dos horas, vuelve el horario de la Ley 2300."""
+    with sesion() as s:
+        ultimo = s.exec(select(Bitacora).where(Bitacora.empresa_id == empresa_id, Bitacora.tipo == "override_dapta").order_by(Bitacora.id.desc())).first()
+        if not ultimo:
+            return False
+        ultimo_id, hasta = ultimo.id, (ultimo.datos or {}).get("hasta", "")
+        cierre = s.exec(select(Bitacora).where(Bitacora.empresa_id == empresa_id, Bitacora.tipo == "override_dapta_cierre", Bitacora.id > ultimo_id)).first()
+    if cierre or not hasta or datetime.utcnow().isoformat() < hasta:
+        return False
+    try:
+        voz.restaurar_ventana_legal()
+        anotar("override_dapta_cierre", "Horario de la Ley 2300 restaurado en la secuencia de Dapta", empresa_id, override_id=ultimo_id)
+        return True
+    except Exception as e:  # noqa: BLE001
+        anotar("error", f"no se pudo restaurar el horario de la secuencia de Dapta: {e}"[:300], empresa_id)
+        return False
 
 
 def registrar_respuesta_token(token: str, valor: str) -> dict:
@@ -255,6 +284,7 @@ def sincronizar_dapta(limite: int = 200, empresa_id: int = 1) -> dict:
     voz = CanalVozDapta(empresa_id=empresa_id)
     if not voz.real:
         return {"error": "Dapta no configurado (clave, agente o secuencia)."}
+    restaurar_ventana_dapta_si_vencio(voz, empresa_id)
     agente_id = voz.ids["agent_id"]
     llamadas = voz.mcp.llamadas(agente_id, limit=limite)
     filas = llamadas.get("calls") or llamadas.get("rows") or []
