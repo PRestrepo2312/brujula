@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Brújula · leads{% endblock %}
+{% block cuerpo %}
+<h1>Leads <em>del perfil</em></h1>
+<form method="get" style="display:flex;gap:10px;margin:12px 0;align-items:end">
+  <div style="width:220px"><label>Buscar</label><input name="q" value="{{ q }}" placeholder="nombre"></div>
+  <div style="width:160px"><label>ICP o estado</label><select name="estado"><option value="">todos</option>{% for e in ['pasa','revisar','descarta','listo','contactado','respondio','calificado','no_calificado','baja'] %}<option value="{{ e }}" {% if e == estado %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+  <div style="width:140px"><label>Fuente</label><select name="fuente"><option value="">todas</option>{% for f in fuentes %}<option value="{{ f }}" {% if f == fuente %}selected{% endif %}>{{ f }}</option>{% endfor %}</select></div>
+  <button class="boton sec" type="submit">Filtrar</button>
+</form>
+<div class="tarjeta">
+<table>
+  <thead><tr><th>Empresa</th><th>Fuente</th><th>Sector</th><th>Ciudad</th><th>Canales</th><th>ICP</th><th>Estado</th><th>Señales</th></tr></thead>
+  <tbody>
+  {% for l in leads %}
+  <tr><td><a href="/lead/{{ l.id }}">{{ l.razon_social.title() }}</a>{% if l.fuentes_todas|length > 1 %} <span class="pill">{{ l.fuentes_todas|length }} fuentes</span>{% endif %}</td>
+      <td>{{ l.fuente_clave }}</td><td>{{ l.sector }}</td><td>{{ l.ciudad.title() }}</td>
+      <td>{{ l.canales|join(', ') }}</td><td class="n"><span class="pill {{ l.icp_estado }}">{{ l.icp_score }}</span></td><td>{{ l.estado }}</td>
+      <td class="sec">{{ (l.senales or {}).keys()|join(', ') }}</td></tr>
+  {% else %}<tr><td colspan="8" class="sec">Sin leads.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

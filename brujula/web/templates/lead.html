@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titulo %}Brújula · {{ l.razon_social }}{% endblock %}
+{% block cuerpo %}
+<h1>{{ l.razon_social.title() }}</h1>
+<p class="sec">{{ l.fuente_clave }} · {{ l.sector }} {{ l.subsector }} · {{ l.ciudad.title() }}{% if l.identificacion %} · NIT {{ l.identificacion }}{% endif %} · fuentes: {{ l.fuentes_todas|join(', ') }}</p>
+<div class="fila c3">
+  <div class="tarjeta">
+    <h2>Contacto</h2>
+    <p>Teléfono: <b>{{ l.telefono or '–' }}</b> {{ l.telefono_tipo }}<br>Correo: <b>{{ l.correo or '–' }}</b><br>Web: {{ l.sitio_web or '–' }}<br>Canales: {{ l.canales|join(', ') }}</p>
+    <p class="sec">Señales: {{ l.senales }}</p>
+  </div>
+  <div class="tarjeta">
+    <h2>ICP: <span class="pill {{ l.icp_estado }}">{{ l.icp_estado }} · {{ l.icp_score }}</span></h2>
+    <p class="sec">{{ l.icp_detalle }}</p>
+    {% if l.icp_estado == 'revisar' %}
+    <form method="post" action="/lead/{{ l.id }}/revision" style="display:flex;gap:8px">
+      <button class="boton" name="decision" value="aprobar">Aprobar</button>
+      <button class="boton gris" name="decision" value="descartar">Descartar</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="tarjeta">
+    <h2>Duplicados fusionados</h2>
+    {% for d in duplicados %}<p>{{ d.razon_social }} <span class="sec">({{ d.fuente_clave }})</span></p>{% else %}<p class="sec">Ninguno.</p>{% endfor %}
+  </div>
+</div>
+<div class="tarjeta">
+  <h2>Intentos de contacto</h2>
+  <table><thead><tr><th>#</th><th>Canal</th><th>Proveedor</th><th>Estado</th><th>Clasificación</th><th>Costo USD</th><th>Enviado</th><th>Detalle</th></tr></thead><tbody>
+  {% for it in intentos %}<tr><td>{{ it.id }}</td><td>{{ it.canal }}</td><td>{{ it.proveedor }}</td><td>{{ it.estado }}{% if it.fuera_ventana %} <span class="pill descarta">override</span>{% endif %}</td><td>{{ it.clasificacion }}</td><td class="n">{{ '%.4f'|format(it.costo_usd) }}</td><td>{{ it.enviado_en.strftime('%d %b %H:%M') if it.enviado_en else '–' }}</td><td class="sec">{{ it.detalle.get('resumen') or it.detalle.get('asunto') or '' }}</td></tr>
+  {% else %}<tr><td colspan="8" class="sec">Sin intentos.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

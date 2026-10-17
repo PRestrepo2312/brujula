@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block titulo %}Brújula · tablero{% endblock %}
+{% block cuerpo %}
+{% set e = m.embudo %}
+<h1>Dónde conviene buscar, <em>medido</em></h1>
+<p class="sec">ICP: {{ icp.nombre }} · calculado {{ m.calculado_en }} UTC</p>
+{% if request.query_params.get('aviso') %}<div class="aviso">{{ request.query_params.get('aviso') }}</div>{% endif %}
+
+<div class="fila c4">
+  <div class="tarjeta kpi"><b>{{ e.encontrados }}</b><span>leads encontrados · {{ e.del_perfil }} del perfil · {{ e.a_revisar }} por revisar</span></div>
+  <div class="tarjeta kpi"><b>{{ e.contactados }}</b><span>contactados · {{ e.respondieron }} respondieron</span></div>
+  <div class="tarjeta kpi"><b>{{ e.calificados }}</b><span>calificados por Dapta · {{ e.no_calificados }} no calificados</span></div>
+  <div class="tarjeta kpi"><b>USD {{ '%.2f'|format(e.costo_total_usd) }}</b><span>gasto total · CPL {{ e.cpl_global if e.cpl_global is not none else '–' }} · CPLQ {{ e.cplq_global if e.cplq_global is not none else '–' }}</span></div>
+</div>
+
+<div class="reco"><b>La brújula dice:</b> {{ m.recomendacion }}</div>
+
+<div class="fila c2">
+  <div class="tarjeta">
+    <h2>Por fuente × canal: las tres métricas</h2>
+    <table>
+      <thead><tr><th>Fuente + canal</th><th>Enviados</th><th>Respondieron</th><th>Calificados</th><th>Gasto USD</th><th>CPL</th><th>CPLQ</th><th>Speed (min)</th></tr></thead>
+      <tbody>
+      {% for k, v in m.cruces.items() %}
+      <tr><td>{{ k.replace('|', ' + ') }}</td><td class="n">{{ v.enviados }}</td><td class="n">{{ v.respondieron }}</td><td class="n">{{ v.calificados }}</td>
+          <td class="n">{{ '%.3f'|format(v.costo_usd) }}</td><td class="n">{{ v.cpl if v.cpl is not none else '–' }}</td><td class="n"><b>{{ v.cplq if v.cplq is not none else '–' }}</b></td><td class="n">{{ v.speed_to_lead_min if v.speed_to_lead_min is not none else '–' }}</td></tr>
+      {% else %}<tr><td colspan="8" class="sec">Todavía no hay intentos. Cree un lote.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <h2 style="margin-top:16px">Por fuente: costo por lead encontrado</h2>
+    <table>
+      <thead><tr><th>Fuente</th><th>Encontrados</th><th>Del perfil</th><th>Con teléfono</th><th>Con correo</th><th>Gasto USD</th><th>Por lead del perfil</th></tr></thead>
+      <tbody>
+      {% for k, v in m.fuentes.items() %}
+      <tr><td>{{ k }}</td><td class="n">{{ v.encontrados }}</td><td class="n">{{ v.del_perfil }}</td><td class="n">{{ v.con_telefono }}</td><td class="n">{{ v.con_correo }}</td><td class="n">{{ '%.4f'|format(v.costo_encontrar_usd) }}</td><td class="n"><b>{{ v.costo_por_lead_encontrado if v.costo_por_lead_encontrado is not none else '–' }}</b></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="tarjeta">
+    <h2>Nuevo lote</h2>
+    <form method="post" action="/lote/nuevo">
+      <div class="fila c2" style="margin:0 0 10px">
+        <div><label>Cuántos leads</label><input type="number" name="n" value="20" min="1" max="500"></div>
+        <div><label>Modo</label><select name="modo"><option value="brujula">La brújula reparte</option><option value="manual">Manual (priors)</option></select></div>
+      </div>
+      {% if not ventana_ok %}
+      <div class="aviso">Fuera de la ventana de la Ley 2300 ({{ ventana_razon }}). Para contactar igual, escriba quién autoriza y el motivo: queda en la bitácora.</div>
+      <div class="fila c2" style="margin:0 0 10px">
+        <div><label>Autoriza</label><input name="usuario" placeholder="nombre"></div>
+        <div><label>Motivo del override</label><input name="motivo_override" placeholder="p. ej. demo con números del equipo"></div>
+      </div>
+      {% else %}<input type="hidden" name="usuario" value=""><input type="hidden" name="motivo_override" value="">{% endif %}
+      <button class="boton" type="submit">Preparar y enviar lote</button>
+    </form>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="/sincronizar"><button class="boton sec" type="submit">Sincronizar con Dapta</button></form>
+      <form method="post" action="/simular"><button class="boton gris" type="submit">Simular resultados (demo sin credenciales)</button></form>
+    </div>
+    <h2 style="margin-top:18px">Últimos lotes</h2>
+    <table><thead><tr><th>#</th><th>Cuándo</th><th>Modo</th><th>Reparto</th></tr></thead><tbody>
+    {% for l in lotes %}<tr><td>{{ l.id }}</td><td>{{ l.creado_en.strftime('%d %b %H:%M') }}</td><td>{{ l.modo }}{% if l.fuera_ventana %} <span class="pill descarta">override</span>{% endif %}</td><td class="sec">{{ l.explicacion }}</td></tr>
+    {% else %}<tr><td colspan="4" class="sec">Sin lotes.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="fila c2">
+  <div class="tarjeta">
+    <h2>Por canal</h2>
+    <table><thead><tr><th>Canal</th><th>Enviados</th><th>Respondieron</th><th>Tasa</th><th>Calificados</th><th>Gasto USD</th><th>CPL</th><th>CPLQ</th><th>Bajas</th><th>Fuera de ventana</th></tr></thead><tbody>
+    {% for k, v in m.canales.items() %}
+    <tr><td>{{ k }}</td><td class="n">{{ v.enviados }}</td><td class="n">{{ v.respondieron }}</td><td class="n">{{ (v.tasa_respuesta * 100)|round(1) if v.tasa_respuesta is not none else '–' }}%</td><td class="n">{{ v.calificados }}</td><td class="n">{{ '%.3f'|format(v.costo_usd) }}</td><td class="n">{{ v.cpl if v.cpl is not none else '–' }}</td><td class="n"><b>{{ v.cplq if v.cplq is not none else '–' }}</b></td><td class="n">{{ v.bajas }}</td><td class="n">{{ v.fuera_ventana }}</td></tr>
+    {% else %}<tr><td colspan="10" class="sec">Sin intentos.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="tarjeta">
+    <h2>Bitácora</h2>
+    <table><tbody>
+    {% for b in bitacora %}<tr><td class="sec" style="white-space:nowrap">{{ b.creado_en.strftime('%d %b %H:%M') }}</td><td><span class="pill">{{ b.tipo }}</span></td><td>{{ b.mensaje }}</td></tr>
+    {% else %}<tr><td class="sec">Nada todavía.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}Brújula{% endblock %}</title>
+<style>
+:root{--ink:#1C1A2E;--navy:#2E2A5A;--accent:#E3661B;--accent2:#B94E0F;--body:#3B3A52;--sec:#7A7891;--border:#E6E1D8;--page:#FAF8F3;--ok:#1F7A4D;--bad:#B3261E}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--body);font-family:"Segoe UI",system-ui,sans-serif;font-size:14px}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:#fff}
+header .marca{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy)}
+header .marca i{width:16px;height:16px;border:2px solid var(--accent);border-radius:50%;display:inline-block;position:relative}
+header nav a{margin-left:18px;color:var(--navy);text-decoration:none;font-weight:600}
+.ventana{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:#fff}
+.ventana.ok{color:var(--ok);border-color:#BFE3CF}.ventana.no{color:var(--bad);border-color:#F1C4C0}
+main{padding:22px 28px;max-width:1280px;margin:0 auto}
+h1{font-family:Georgia,serif;font-size:26px;color:var(--ink);margin:0 0 4px}h1 em{color:var(--accent);font-style:italic}
+h2{font-family:Georgia,serif;font-size:18px;color:var(--ink);margin:0 0 10px}
+.fila{display:grid;gap:14px;margin:14px 0}.c4{grid-template-columns:repeat(4,1fr)}.c2{grid-template-columns:1.3fr 1fr}.c3{grid-template-columns:repeat(3,1fr)}
+.tarjeta{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:0 8px 22px rgba(28,26,46,.05)}
+.kpi b{display:block;font-size:26px;color:var(--ink);font-family:Georgia,serif}.kpi span{font-size:12px;color:var(--sec)}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--sec);padding:6px;border-bottom:1px solid var(--border)}
+td{padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top}td.n{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#F2F1EE;color:var(--navy)}
+.pill.pasa{background:#E4F3EA;color:var(--ok)}.pill.revisar{background:#FCEBDD;color:var(--accent2)}.pill.descarta{background:#F7DEDC;color:var(--bad)}
+.boton{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer}.boton.sec{background:var(--navy)}.boton.gris{background:#E6E1D8;color:var(--ink)}
+input,select,textarea{border:1px solid var(--border);border-radius:8px;padding:8px;font:inherit;width:100%}
+label{font-size:12px;color:var(--sec);display:block;margin-bottom:4px}
+.reco{background:linear-gradient(115deg,#2E2A5A,#1C1A2E);color:#fff;border-radius:12px;padding:16px 18px}.reco b{color:#F6A26C}
+.aviso{background:#FCEBDD;border:1px solid #F3C9A8;color:var(--accent2);padding:10px 14px;border-radius:8px;margin:10px 0}
+a{color:var(--navy)}.sec{color:var(--sec);font-size:12px}
+.barra{height:8px;background:#F2F1EE;border-radius:4px;overflow:hidden}.barra i{display:block;height:100%;background:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <div class="marca"><i></i> BRÚJULA · JFB DEVS</div>
+  <nav><a href="/">Tablero</a><a href="/leads">Leads</a><a href="/leads?estado=revisar">Por revisar</a><a href="/api/docs">API</a></nav>
+  <div class="ventana {{ 'ok' if ventana_ok else 'no' }}">{{ ahora }} · {{ ventana_razon }}{% if not ventana_ok %} · próxima: {{ proxima }}{% endif %}</div>
+</header>
+<main>{% block cuerpo %}{% endblock %}</main>
+</body>
+</html>

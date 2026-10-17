@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Brújula (Hackathon 30X, reto Dapta): App Runner con la imagen de ECR, PostgreSQL en RDS, secretos en Secrets Manager
+  y EventBridge que dispara el siguiente lote cada hora dentro de la ventana legal y la sincronización con Dapta.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: URI de la imagen en ECR (cuenta.dkr.ecr.region.amazonaws.com/brujula:tag)
+  DbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+  DaptaApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  OpenRouterApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  ResendApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  EmailFrom:
+    Type: String
+    Default: "Brújula <hola@example.com>"
+  CronKey:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+
+Resources:
+  # --- Base de datos ---
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Brújula RDS (acceso público con contraseña fuerte y SSL; decisión de hackathon, no de producción)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+  Db:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: brujula
+      Engine: postgres
+      EngineVersion: "16"
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      DBName: brujula
+      MasterUsername: brujula
+      MasterUserPassword: !Ref DbPassword
+      PubliclyAccessible: true
+      VPCSecurityGroups: [!Ref DbSecurityGroup]
+      BackupRetentionPeriod: 1
+      StorageEncrypted: true
+
+  # --- Secretos ---
+  Secreto:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: brujula/env
+      SecretString: !Sub |
+        {"DAPTA_API_KEY":"${DaptaApiKey}","OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}",
+         "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
+
+  # --- App Runner ---
+  AccesoEcrRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: build.apprunner.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess]
+  InstanciaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: tasks.apprunner.amazonaws.com}, Action: sts:AssumeRole}]
+      Policies:
+        - PolicyName: brujula-secretos-y-ses
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - {Effect: Allow, Action: [secretsmanager:GetSecretValue], Resource: !Ref Secreto}
+              - {Effect: Allow, Action: [ses:SendEmail, ses:SendRawEmail], Resource: "*"}
+              - {Effect: Allow, Action: [s3:PutObject, s3:GetObject, s3:ListBucket], Resource: [!GetAtt Exportaciones.Arn, !Sub "${Exportaciones.Arn}/*"]}
+  Servicio:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: brujula
+      SourceConfiguration:
+        AutoDeploymentsEnabled: true
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AccesoEcrRole.Arn
+        ImageRepository:
+          ImageIdentifier: !Ref ImageUri
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: "8080"
+            RuntimeEnvironmentSecrets:
+              - {Name: DAPTA_API_KEY, Value: !Sub "${Secreto}:DAPTA_API_KEY::"}
+              - {Name: OPENROUTER_API_KEY, Value: !Sub "${Secreto}:OPENROUTER_API_KEY::"}
+              - {Name: RESEND_API_KEY, Value: !Sub "${Secreto}:RESEND_API_KEY::"}
+              - {Name: CRON_KEY, Value: !Sub "${Secreto}:CRON_KEY::"}
+              - {Name: DATABASE_URL, Value: !Sub "${Secreto}:DATABASE_URL::"}
+            RuntimeEnvironmentVariables:
+              - {Name: TZ, Value: America/Bogota}
+              - {Name: EMAIL_FROM, Value: !Ref EmailFrom}
+              - {Name: AWS_REGION, Value: !Ref "AWS::Region"}
+              - {Name: EXPORT_BUCKET, Value: !Ref Exportaciones}
+      InstanceConfiguration:
+        Cpu: "0.5 vCPU"
+        Memory: "1 GB"
+        InstanceRoleArn: !GetAtt InstanciaRole.Arn
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /healthz
+
+  # --- Exportaciones y respaldos de fuentes ---
+  Exportaciones:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub "brujula-exportaciones-${AWS::AccountId}"
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+
+  # --- Cron: EventBridge llama al servicio por HTTPS (API destination) ---
+  ConexionCron:
+    Type: AWS::Events::Connection
+    Properties:
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters: {ApiKeyName: x-cron-key, ApiKeyValue: !Ref CronKey}
+  DestinoLote:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      ConnectionArn: !GetAtt ConexionCron.Arn
+      HttpMethod: POST
+      InvocationEndpoint: !Sub "https://${Servicio.ServiceUrl}/cron/lote"
+      InvocationRateLimitPerSecond: 1
+  DestinoSync:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      ConnectionArn: !GetAtt ConexionCron.Arn
+      HttpMethod: POST
+      InvocationEndpoint: !Sub "https://${Servicio.ServiceUrl}/cron/sincronizar"
+      InvocationRateLimitPerSecond: 1
+  CronRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: events.amazonaws.com}, Action: sts:AssumeRole}]
+      Policies:
+        - PolicyName: invocar-destinos
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: [{Effect: Allow, Action: events:InvokeApiDestination, Resource: [!GetAtt DestinoLote.Arn, !GetAtt DestinoSync.Arn]}]
+  ReglaLote:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Siguiente lote cada hora, lunes a viernes 7 a 18 y sábados 8 a 14 (hora de Bogotá = UTC-5). La app vuelve a validar la ventana.
+      ScheduleExpression: cron(5 12-23 ? * MON-FRI *)
+      State: ENABLED
+      Targets: [{Id: lote, Arn: !GetAtt DestinoLote.Arn, RoleArn: !GetAtt CronRole.Arn}]
+  ReglaLoteSabado:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(5 13-19 ? * SAT *)
+      State: ENABLED
+      Targets: [{Id: lote, Arn: !GetAtt DestinoLote.Arn, RoleArn: !GetAtt CronRole.Arn}]
+  ReglaSync:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Lee llamadas de Dapta y pasa al calificador a los que respondieron, cada 15 minutos.
+      ScheduleExpression: rate(15 minutes)
+      State: ENABLED
+      Targets: [{Id: sync, Arn: !GetAtt DestinoSync.Arn, RoleArn: !GetAtt CronRole.Arn}]
+
+Outputs:
+  Url:
+    Value: !Sub "https://${Servicio.ServiceUrl}"
+  BaseDeDatos:
+    Value: !GetAtt Db.Endpoint.Address
+  Bucket:
+    Value: !Ref Exportaciones

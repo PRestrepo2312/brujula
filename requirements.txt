@@ -1,0 +1,12 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlmodel==0.0.22
+httpx==0.28.1
+jinja2==3.1.4
+python-dotenv==1.0.1
+phonenumbers==8.13.50
+rapidfuzz==3.10.1
+python-multipart==0.0.17
+tzdata==2024.2
+psycopg[binary]==3.2.3
+boto3==1.35.49

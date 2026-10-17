@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Brújula · gracias{% endblock %}
+{% block cuerpo %}
+<div class="tarjeta" style="max-width:560px;margin:40px auto;text-align:center">
+  {% if r.error %}
+  <h1>Enlace no válido</h1><p class="sec">No encontramos este mensaje.</p>
+  {% elif v == 'si' %}
+  <h1>Gracias, <em>los llamamos</em></h1><p>Un asistente de voz los contactará en horario hábil para agendar la demostración.</p>
+  {% elif v == 'baja' %}
+  <h1>Listo, no volveremos a escribir</h1><p>Su correo y teléfono quedaron en nuestra lista de exclusión.</p>
+  {% else %}
+  <h1>Entendido, gracias</h1><p>No volveremos a insistir por este motivo.</p>
+  {% endif %}
+</div>
+{% endblock %}
