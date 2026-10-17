@@ -30,7 +30,8 @@ Resources:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
         InviteMessageTemplate:
-          EmailSubject: "Bienvenido a Brújula"
+          # Sin tildes a propósito: el remitente por defecto de Cognito manda el asunto sin codificar y los clientes de correo lo muestran roto.
+          EmailSubject: "Bienvenido a Brujula"
           EmailMessage: !Sub >-
             <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #E6E1D8;border-radius:12px">
             <div style="background:#2E2A5A;color:#fff;padding:14px 24px;font-size:12px;letter-spacing:.18em;font-weight:bold;border-radius:12px 12px 0 0"><span style="color:#E3661B">&#9679;</span>&nbsp; BR&Uacute;JULA</div>
@@ -40,7 +41,7 @@ Resources:
             <p style="color:#7A7891;font-size:12px">Equipo Br&uacute;jula</p></div></div>
       VerificationMessageTemplate:
         DefaultEmailOption: CONFIRM_WITH_CODE
-        EmailSubject: "Brújula: su código de verificación"
+        EmailSubject: "Brujula: su codigo de verificacion"
         EmailMessage: >-
           <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #E6E1D8;border-radius:12px">
           <div style="background:#2E2A5A;color:#fff;padding:14px 24px;font-size:12px;letter-spacing:.18em;font-weight:bold;border-radius:12px 12px 0 0"><span style="color:#E3661B">&#9679;</span>&nbsp; BR&Uacute;JULA</div>

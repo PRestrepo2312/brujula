@@ -4,6 +4,9 @@
 # Lee las claves de .env (DAPTA_API_KEY, OPENROUTER_API_KEY, RESEND_API_KEY, EMAIL_FROM) y pide DB_PASSWORD y CRON_KEY si no están.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# La CLI de AWS en Windows lee las plantillas con la codificación del sistema (cp1252) y manda los acentos rotos a Cognito
+# ("BrÃºjula"); en modo UTF-8 los lee bien. En Linux y macOS no cambia nada.
+export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 PERFIL="${PERFIL:-brujula}"
 REGION="${REGION:-us-east-1}"
 REPO="brujula"
