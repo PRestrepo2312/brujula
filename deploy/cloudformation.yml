@@ -48,6 +48,10 @@ Parameters:
     Type: String
     Default: ""
     Description: Agente de texto (WhatsApp) de Dapta cuyas conversaciones se sincronizan.
+  Despliegue:
+    Type: String
+    Default: ""
+    Description: Etiqueta del despliegue (la imagen). Cambia en cada despliegue para que Lambda recicle sus instancias y vuelva a leer el secreto.
   DenueToken:
     Type: String
     Default: ""
@@ -187,6 +191,7 @@ Resources:
           EMAIL_FROM: !Ref EmailFrom
           EXPORT_BUCKET: !Ref Exportaciones
           CORS_ORIGINS: !Ref CorsOrigins
+          DESPLIEGUE: !Ref Despliegue
           MODO_PRUEBA: !Ref ModoPrueba
           TELEFONO_PRUEBA: !Ref TelefonoPrueba
           CORREOS_PRUEBA: !Ref CorreosPrueba
