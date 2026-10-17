@@ -16,7 +16,16 @@ from .config import config
 
 COOKIE = "brujula_sesion"
 DURACION_SESION_SEG = 12 * 3600
-PUBLICAS = ("/login", "/callback", "/logout", "/healthz", "/r/", "/webhook/", "/cron/", "/api/docs", "/api/openapi.json", "/static/", "/app")
+PUBLICAS = ("/login", "/callback", "/logout", "/healthz", "/r/", "/webhook/", "/cron/", "/api/docs", "/api/openapi.json", "/api/registro", "/static/", "/app")
+
+
+def validar_clave(clave: str) -> str | None:
+    """La política del User Pool: 12 caracteres o más, con mayúscula, minúscula y número. Devuelve el problema o None."""
+    if len(clave) < 12:
+        return "la clave debe tener 12 caracteres o más"
+    if not any(c.isupper() for c in clave) or not any(c.islower() for c in clave) or not any(c.isdigit() for c in clave):
+        return "la clave debe tener mayúscula, minúscula y número"
+    return None
 
 
 class Cognito:

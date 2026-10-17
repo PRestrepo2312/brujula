@@ -1,13 +1,13 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 
 type Modo = 'clave' | 'nueva' | 'olvide' | 'codigo';
 
 @Component({
   selector: 'pagina-login',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <div class="entrada">
       <div class="tarjeta login">
@@ -22,7 +22,7 @@ type Modo = 'clave' | 'nueva' | 'olvide' | 'codigo';
               <label>Correo</label><input type="email" [(ngModel)]="email" autocomplete="username" (keyup.enter)="entrar()">
               <label>Clave</label><input type="password" [(ngModel)]="clave" autocomplete="current-password" (keyup.enter)="entrar()">
               <button class="boton ancho" (click)="entrar()" [disabled]="ocupado() || !email || !clave">{{ ocupado() ? 'Entrando…' : 'Entrar' }}</button>
-              <div class="enlaces"><a (click)="cambiar('olvide')">Olvidé mi clave</a><a (click)="auth.login(siguiente)">Entrar con la página de Cognito</a></div>
+              <div class="enlaces"><a (click)="cambiar('olvide')">Olvidé mi clave</a><a routerLink="/registro">Crear mi empresa</a><a (click)="auth.login(siguiente)">Entrar con la página de Cognito</a></div>
             }
             @case ('nueva') {
               <h2>Clave nueva</h2>
@@ -49,7 +49,7 @@ type Modo = 'clave' | 'nueva' | 'olvide' | 'codigo';
           }
           @if (error()) {<div class="aviso">{{ error() }}</div>}
           @if (info()) {<div class="ok-msg">{{ info() }}</div>}
-          <p class="sec pie-login">Las cuentas las crea el administrador de su empresa. La clave viaja cifrada directo a Amazon Cognito; Brújula nunca la ve.</p>
+          <p class="sec pie-login">¿Primera vez? Cree su empresa en un minuto; su administrador puede agregar más personas después. La clave viaja cifrada a Amazon Cognito.</p>
         }
       </div>
     </div>`,

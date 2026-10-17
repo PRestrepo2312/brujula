@@ -49,6 +49,7 @@ export class ApiService {
   empresas(): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/empresas`); }
   crearEmpresa(cuerpo: { nombre: string; correo_notificaciones: string; icp_texto: string }): Observable<any> { return this.http.post(`${this.base}/api/empresas`, cuerpo); }
   crearUsuario(cuerpo: { email: string; empresa_id: number; rol: string }): Observable<any> { return this.http.post(`${this.base}/api/usuarios`, cuerpo); }
+  registro(cuerpo: { empresa: string; email: string; clave: string; icp_texto: string }): Observable<any> { return this.http.post(`${this.base}/api/registro`, cuerpo); }
   notificaciones(noLeidas = false): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/notificaciones`, { params: { no_leidas: noLeidas } }); }
   leerNotificaciones(id?: number): Observable<any> { return this.http.post(`${this.base}/api/notificaciones/leer`, null, { params: id ? { id } : {} }); }
   urlSubida(nombre: string, content_type = 'text/csv'): Observable<any> { return this.http.post(`${this.base}/api/archivos/url-subida`, { nombre, content_type }); }

@@ -23,3 +23,8 @@ def test_urls_y_cookies_de_cognito():
     assert auth.leer_estado(auth.firmar_estado("/leads")) == "/leads"
     assert auth.es_publica("/r/abc") and auth.es_publica("/webhook/dapta") and not auth.es_publica("/api/leads") and not auth.es_publica("/tablero")
     assert auth.es_publica("/") and auth.es_publica("/app/leads/5")   # la raíz solo redirige; el front Angular trae su propio JWT
+
+
+def test_validar_clave_politica_del_pool():
+    assert auth.validar_clave("Corta1A") and auth.validar_clave("todominusculas12") and auth.validar_clave("SINNUMEROSAQUIAA")
+    assert auth.validar_clave("ClaveSegura2026") is None

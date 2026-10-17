@@ -44,6 +44,9 @@ Resources:
       AllowedOAuthFlowsUserPoolClient: true
       # USER_PASSWORD_AUTH: el formulario propio del front habla directo con Cognito por HTTPS (la clave nunca pasa por el servidor).
       ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_USER_SRP_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      # La empresa y el rol los fija el servidor con APIs de administrador: un usuario no puede cambiárselos a sí mismo.
+      ReadAttributes: [email, email_verified, "custom:empresa_id", "custom:rol"]
+      WriteAttributes: [email]
       AllowedOAuthFlows: [code]
       AllowedOAuthScopes: [openid, email, profile]
       SupportedIdentityProviders: [COGNITO]

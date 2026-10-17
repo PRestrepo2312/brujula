@@ -84,6 +84,13 @@ class EmpresaCambio(BaseModel):
     config: dict | None = None
 
 
+class RegistroEntrada(BaseModel):
+    empresa: str
+    email: str
+    clave: str
+    icp_texto: str = ""
+
+
 class UsuarioEntrada(BaseModel):
     email: str
     empresa_id: int
@@ -590,6 +597,42 @@ def api_empresa_crear(request: Request, entrada: EmpresaEntrada):
     icp, info = agente.interpretar_icp(entrada.icp_texto) if entrada.icp_texto else (ICP(), {"motor": "defecto"})
     e = empresas.crear(entrada.nombre, entrada.correo_notificaciones, entrada.icp_texto, icp.__dict__)
     return {**empresas.publico(e), "icp_motor": info.get("motor")}
+
+
+@app.post("/api/registro")
+def api_registro(entrada: RegistroEntrada):
+    """Registro propio (público): crea la empresa y su primer usuario como admin de esa empresa, con clave definitiva, y entra de inmediato.
+    La empresa y el rol los fija el servidor con APIs de administrador de Cognito; el cliente no puede escribirlos."""
+    if not cognito.activo:
+        return JSONResponse({"error": "Cognito no está configurado"}, status_code=400)
+    email = entrada.email.strip().lower()
+    nombre = " ".join(entrada.empresa.split())
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return JSONResponse({"error": "correo inválido"}, status_code=400)
+    if len(nombre) < 2:
+        return JSONResponse({"error": "el nombre de la empresa es muy corto"}, status_code=400)
+    problema = auth.validar_clave(entrada.clave)
+    if problema:
+        return JSONResponse({"error": problema}, status_code=400)
+    import boto3
+    c = boto3.client("cognito-idp", region_name=config.aws_region)
+    try:
+        c.admin_get_user(UserPoolId=cognito.pool_id, Username=email)
+        return JSONResponse({"error": "ese correo ya tiene cuenta: entre con su clave o use 'Olvidé mi clave'"}, status_code=409)
+    except c.exceptions.UserNotFoundException:
+        pass
+    texto_icp = entrada.icp_texto.strip()
+    icp, _info = agente.interpretar_icp(texto_icp) if texto_icp else (ICP(), {"motor": "defecto"})
+    e = empresas.crear(nombre, email, texto_icp, icp.__dict__)
+    try:
+        c.admin_create_user(UserPoolId=cognito.pool_id, Username=email, MessageAction="SUPPRESS",
+                            UserAttributes=[{"Name": "email", "Value": email}, {"Name": "email_verified", "Value": "true"},
+                                            {"Name": "custom:empresa_id", "Value": str(e.id)}, {"Name": "custom:rol", "Value": "admin"}])
+        c.admin_set_user_password(UserPoolId=cognito.pool_id, Username=email, Password=entrada.clave, Permanent=True)
+    except Exception as ex:  # noqa: BLE001
+        return JSONResponse({"error": f"Cognito: {str(ex)[:200]}"}, status_code=400)
+    anotar("registro", f"Empresa {e.id} '{nombre}' registrada por {email} (admin)", e.id, email=email)
+    return {"ok": True, "empresa_id": e.id, "email": email}
 
 
 @app.post("/api/usuarios")
