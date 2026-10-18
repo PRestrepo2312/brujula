@@ -2,6 +2,9 @@ import { DecimalPipe, KeyValuePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService, Metricas } from '../core/api.service';
+import { nombreCanal, nombreCruce, nombreFuente } from '../core/nombres';
+
+interface Burbuja { clave: string; nombre: string; cpl: number; tasa: number; n: number; num: number; x: number; y: number; r: number; zona: string; color: string }
 
 @Component({
   selector: 'pagina-tablero',
@@ -33,21 +36,26 @@ import { ApiService, Metricas } from '../core/api.service';
       </div>
       <div class="grid cols-2" style="margin-top:16px">
         <div class="card">
-          <div class="card-head"><h2>Costo contra calidad</h2><span class="muted small">cada burbuja es una fuente y un canal; su tamaño, cuántos contactos</span></div>
-          @if (burbujas().length) {
+          <div class="card-head"><h2>Costo contra calidad</h2><span class="muted small">cada burbuja es una fuente con un canal; su tamaño, cuántos contactos</span></div>
+          @if (cuadro().burbujas.length) {
             <svg viewBox="0 0 520 300" class="cuadrantes" role="img" aria-label="Costo por respuesta contra porcentaje de calificados">
               <rect x="56" y="14" width="448" height="236" fill="#F7F9FD" stroke="#E4E8F0"/>
-              <line [attr.x1]="56 + 448 * ejes().xMed" y1="14" [attr.x2]="56 + 448 * ejes().xMed" y2="250" stroke="#CBD3E1" stroke-dasharray="4 4"/>
-              <line x1="56" [attr.y1]="250 - 236 * ejes().yMed" x2="504" [attr.y2]="250 - 236 * ejes().yMed" stroke="#CBD3E1" stroke-dasharray="4 4"/>
-              <text x="62" y="30" class="cuadrante">caros y buenos</text><text x="498" y="30" class="cuadrante" text-anchor="end">caros y flojos</text>
-              <text x="62" y="244" class="cuadrante">baratos y flojos</text><text x="498" y="244" class="cuadrante" text-anchor="end">baratos y buenos</text>
-              @for (b of burbujas(); track b.clave) {
-                <circle [attr.cx]="b.x" [attr.cy]="b.y" [attr.r]="b.r" fill="#2563EB" fill-opacity=".22" stroke="#2563EB" stroke-width="1.5"/>
-                <text [attr.x]="b.x" [attr.y]="b.y - b.r - 4" text-anchor="middle" class="etiqueta">{{ b.clave }}</text>
+              <line [attr.x1]="56 + 448 * cuadro().xMed" y1="14" [attr.x2]="56 + 448 * cuadro().xMed" y2="250" stroke="#CBD3E1" stroke-dasharray="4 4"/>
+              <line x1="56" [attr.y1]="250 - 236 * cuadro().yMed" x2="504" [attr.y2]="250 - 236 * cuadro().yMed" stroke="#CBD3E1" stroke-dasharray="4 4"/>
+              <text x="62" y="30" class="cuadrante" style="fill:#0F6E56">Baratos y buenos</text><text x="498" y="30" class="cuadrante" text-anchor="end" style="fill:#2563EB">Caros y buenos</text>
+              <text x="62" y="244" class="cuadrante" style="fill:#B7791F">Baratos y flojos</text><text x="498" y="244" class="cuadrante" text-anchor="end" style="fill:#B91C1C">Caros y flojos</text>
+              @for (b of cuadro().burbujas; track b.clave) {
+                <circle [attr.cx]="b.x" [attr.cy]="b.y" [attr.r]="b.r" [attr.fill]="b.color" fill-opacity=".22" [attr.stroke]="b.color" stroke-width="1.5"/>
+                <text [attr.x]="b.x" [attr.y]="b.y + 4" text-anchor="middle" class="numero">{{ b.num }}</text>
               }
-              <text x="280" y="282" text-anchor="middle" class="eje">Costo por respuesta, USD (menos es mejor) →</text>
-              <text x="18" y="132" text-anchor="middle" class="eje" transform="rotate(-90 18 132)">Calificados, % (más es mejor) →</text>
+              <text x="280" y="282" text-anchor="middle" class="eje">Costo por cada respuesta, en USD: más barato a la izquierda</text>
+              <text x="18" y="132" text-anchor="middle" class="eje" transform="rotate(-90 18 132)">Calificados por Dapta, %: mejor arriba</text>
             </svg>
+            <ol class="leyenda">
+              @for (b of cuadro().burbujas; track b.clave) {
+                <li><span class="punto" [style.background]="b.color">{{ b.num }}</span><div><b>{{ b.nombre }}</b><div class="muted small">{{ b.n }} contactos · USD {{ b.cpl | number:'1.2-2' }} por respuesta · {{ b.tasa * 100 | number:'1.0-0' }} % calificados · {{ b.zona }}</div></div></li>
+              }
+            </ol>
           } @else { <div class="empty"><b>Todavía no hay respuestas</b>Cuando los leads respondan y Dapta califique, cada fuente y canal aparece aquí según lo que cuesta y lo que trae.</div> }
         </div>
         <div class="card">
@@ -72,7 +80,7 @@ import { ApiService, Metricas } from '../core/api.service';
               <thead><tr><th>Fuente + canal</th><th class="num">Enviados</th><th class="num">Respondieron</th><th class="num">Calificados</th><th class="num">Gasto USD</th><th class="num">Costo/respuesta</th><th class="num">Costo/calificado</th><th class="num">Tiempo</th></tr></thead>
               <tbody>
                 @for (c of m.cruces | keyvalue; track c.key) {
-                  <tr><td>{{ c.key.replace('|', ' · ') }}</td><td class="num">{{ c.value.enviados }}</td><td class="num">{{ c.value.respondieron }}</td><td class="num">{{ c.value.calificados }}</td>
+                  <tr><td>{{ nombreCruce(c.key) }}</td><td class="num">{{ c.value.enviados }}</td><td class="num">{{ c.value.respondieron }}</td><td class="num">{{ c.value.calificados }}</td>
                     <td class="num">{{ c.value.costo_usd | number:'1.3-3' }}</td><td class="num">{{ c.value.cpl ?? '–' }}</td><td class="num"><b>{{ c.value.cplq ?? '–' }}</b></td><td class="num">{{ c.value.speed_to_lead_min != null ? c.value.speed_to_lead_min + ' min' : '–' }}</td></tr>
                 } @empty { <tr><td colspan="8"><div class="empty"><b>Todavía no hay contactos</b>Cree un lote en <a routerLink="/lotes">Lotes</a> para empezar a medir.</div></td></tr> }
               </tbody>
@@ -84,7 +92,7 @@ import { ApiService, Metricas } from '../core/api.service';
               <thead><tr><th>Fuente</th><th class="num">Encontrados</th><th class="num">Encajan</th><th class="num">Con teléfono</th><th class="num">Con correo</th><th class="num">Gasto USD</th><th class="num">Por lead que encaja</th></tr></thead>
               <tbody>
                 @for (f of m.fuentes | keyvalue; track f.key) {
-                  <tr><td>{{ f.key }}</td><td class="num">{{ f.value.encontrados }}</td><td class="num">{{ f.value.del_perfil }}</td><td class="num">{{ f.value.con_telefono }}</td><td class="num">{{ f.value.con_correo }}</td>
+                  <tr><td>{{ nombreFuente(f.key) }}</td><td class="num">{{ f.value.encontrados }}</td><td class="num">{{ f.value.del_perfil }}</td><td class="num">{{ f.value.con_telefono }}</td><td class="num">{{ f.value.con_correo }}</td>
                     <td class="num">{{ f.value.costo_encontrar_usd | number:'1.4-4' }}</td><td class="num"><b>{{ f.value.costo_por_lead_encontrado ?? '–' }}</b></td></tr>
                 } @empty { <tr><td colspan="7"><div class="empty"><b>Sin leads</b>Empiece en <a routerLink="/buscar">Buscar</a>.</div></td></tr> }
               </tbody>
@@ -104,7 +112,7 @@ import { ApiService, Metricas } from '../core/api.service';
               <thead><tr><th>Canal</th><th class="num">Enviados</th><th class="num">Resp.</th><th class="num">% resp.</th><th class="num">Calif.</th><th class="num">% calif.</th><th class="num">Costo/calificado</th></tr></thead>
               <tbody>
                 @for (c of m.canales | keyvalue; track c.key) {
-                  <tr><td>{{ c.key }}</td><td class="num">{{ c.value.enviados }}</td><td class="num">{{ c.value.respondieron }}</td><td class="num">{{ c.value.tasa_respuesta != null ? (c.value.tasa_respuesta * 100 | number:'1.0-1') + '%' : '–' }}</td><td class="num">{{ c.value.calificados }}</td><td class="num"><b>{{ c.value.tasa_calificacion != null ? (c.value.tasa_calificacion * 100 | number:'1.0-1') + '%' : '–' }}</b></td><td class="num"><b>{{ c.value.cplq ?? '–' }}</b></td></tr>
+                  <tr><td>{{ nombreCanal(c.key) }}</td><td class="num">{{ c.value.enviados }}</td><td class="num">{{ c.value.respondieron }}</td><td class="num">{{ c.value.tasa_respuesta != null ? (c.value.tasa_respuesta * 100 | number:'1.0-1') + '%' : '–' }}</td><td class="num">{{ c.value.calificados }}</td><td class="num"><b>{{ c.value.tasa_calificacion != null ? (c.value.tasa_calificacion * 100 | number:'1.0-1') + '%' : '–' }}</b></td><td class="num"><b>{{ c.value.cplq ?? '–' }}</b></td></tr>
                 } @empty { <tr><td colspan="7"><div class="empty">Sin contactos.</div></td></tr> }
               </tbody>
             </table></div>
@@ -116,8 +124,11 @@ import { ApiService, Metricas } from '../core/api.service';
   styles: [`
     .cuadrantes { width: 100%; height: auto; display: block; }
     .cuadrante { font-family: var(--mono); font-size: 9px; fill: #8A94A8; letter-spacing: .08em; text-transform: uppercase; }
-    .etiqueta { font-size: 11px; font-weight: 600; fill: var(--ink); }
+    .numero { font-family: var(--mono); font-size: 11px; font-weight: 700; fill: var(--ink); }
     .eje { font-size: 11px; fill: var(--muted); }
+    .leyenda { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+    .leyenda li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+    .punto { flex: none; width: 22px; height: 22px; border-radius: 50%; color: #fff; font: 700 11px/22px var(--mono); text-align: center; }
   `],
 })
 export class TableroPage {
@@ -139,18 +150,27 @@ export class TableroPage {
   }
   pctCalificados(m: Metricas): string { const c = m.embudo.contactados || 0; return c ? Math.round((m.embudo.calificados / c) * 100) + '%' : '0%'; }
 
-  /** Burbujas del cuadrante costo contra calidad: X = costo por respuesta (USD), Y = % de calificados sobre los que respondieron, tamaño = enviados. */
-  burbujas(): { clave: string; x: number; y: number; r: number }[] {
+  nombreCruce = nombreCruce; nombreFuente = nombreFuente; nombreCanal = nombreCanal;
+
+  /** Cuadrante costo contra calidad: X = costo por respuesta (USD), Y = % de calificados sobre los que respondieron, tamaño = contactos.
+   *  Las líneas punteadas son la mediana de cada eje; la zona de cada burbuja sale de ahí y se repite en la leyenda numerada. */
+  cuadro(): { burbujas: Burbuja[]; xMed: number; yMed: number } {
     const cruces = this.m()?.cruces || {};
-    const puntos = Object.entries(cruces).filter(([, v]: any) => v.cpl != null && v.enviados > 0).map(([k, v]: any) => ({ clave: k.replace('|', ' · '), cpl: v.cpl as number, tasa: (v.tasa_calificacion ?? 0) as number, n: v.enviados as number }));
-    if (!puntos.length) return [];
-    const maxCpl = Math.max(...puntos.map((p) => p.cpl), 0.01); const maxN = Math.max(...puntos.map((p) => p.n), 1);
-    return puntos.map((p) => ({ clave: p.clave, x: 56 + 448 * (0.08 + 0.84 * (p.cpl / maxCpl)), y: 250 - 236 * (0.1 + 0.8 * Math.min(1, p.tasa)), r: 8 + 22 * Math.sqrt(p.n / maxN) }));
-  }
-  ejes(): { xMed: number; yMed: number } {
-    const b = this.burbujas(); if (!b.length) return { xMed: 0.5, yMed: 0.5 };
-    const med = (xs: number[]) => { const s = [...xs].sort((a, c) => a - c); return s[Math.floor(s.length / 2)]; };
-    return { xMed: (med(b.map((p) => p.x)) - 56) / 448, yMed: (250 - med(b.map((p) => p.y))) / 236 };
+    const p = Object.entries(cruces).filter(([, v]: any) => v.cpl != null && v.enviados > 0)
+      .map(([k, v]: any) => ({ clave: k, nombre: nombreCruce(k), cpl: v.cpl as number, tasa: (v.tasa_calificacion ?? 0) as number, n: v.enviados as number }))
+      .sort((a, b) => a.cpl - b.cpl);
+    if (!p.length) return { burbujas: [], xMed: 0.5, yMed: 0.5 };
+    const maxCpl = Math.max(...p.map((q) => q.cpl), 0.01); const maxN = Math.max(...p.map((q) => q.n), 1);
+    const med = (xs: number[]) => { const s = [...xs].sort((a, c) => a - c); const i = Math.floor(s.length / 2); return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2; };
+    const xs = p.map((q) => 0.08 + 0.84 * (q.cpl / maxCpl)); const ys = p.map((q) => 0.1 + 0.8 * Math.min(1, q.tasa));
+    const xMed = med(xs), yMed = med(ys);
+    const burbujas = p.map((q, i) => {
+      const barato = xs[i] <= xMed, bueno = ys[i] >= yMed;
+      const zona = barato && bueno ? 'barato y bueno' : bueno ? 'caro y bueno' : barato ? 'barato y flojo' : 'caro y flojo';
+      const color = barato && bueno ? '#0F6E56' : bueno ? '#2563EB' : barato ? '#B7791F' : '#B91C1C';
+      return { ...q, num: i + 1, x: 56 + 448 * xs[i], y: 250 - 236 * ys[i], r: 9 + 20 * Math.sqrt(q.n / maxN), zona, color };
+    });
+    return { burbujas, xMed, yMed };
   }
   fecha(iso: string): string { try { return new Date(iso + (iso.endsWith('Z') ? '' : 'Z')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }); } catch { return iso; } }
 

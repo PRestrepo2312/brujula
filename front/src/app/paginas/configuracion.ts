@@ -40,6 +40,11 @@ import { AuthService } from '../core/auth.service';
               <div class="field"><label>Nombre</label><input [(ngModel)]="form.nombre"></div>
               <div class="field"><label>Correo para notificaciones</label><input [(ngModel)]="form.correo_notificaciones" placeholder="ventas@empresa.com"></div>
               <div class="field"><label>Leads por lote</label><input type="number" [(ngModel)]="form.config.presupuesto_lote" min="1" max="500"></div>
+              <div class="field"><label>Encaje mínimo para contactar (%)</label><input type="number" min="70" max="100" step="5" [ngModel]="umbralPct()" (ngModelChange)="form.config.umbral_contacto = $event / 100"><span class="hint">Solo entran en un lote las empresas con ese encaje o más. 70 % es lo que la brújula considera "encaja"; súbalo a 80 o 90 para ser más exigente.</span></div>
+              <div class="field"><label>Contacto automático</label><div class="choices">
+                <span class="choice" [class.on]="form.config.contacto_automatico === true" (click)="form.config.contacto_automatico = true">Activo: la brújula arma y envía lotes sola, cada hora en horario legal</span>
+                <span class="choice" [class.on]="!form.config.contacto_automatico" (click)="form.config.contacto_automatico = false">Apagado: solo cuando yo lo pida (Lotes o el chat de Buscar)</span>
+              </div></div>
               <div class="field"><label>Canales activos</label><div class="choices">@for (c of ['voz','correo','whatsapp']; track c) {<span class="choice" [class.on]="form.config.canales.includes(c)" (click)="alternar(c)">{{ c }}</span>}</div></div>
               <div class="field"><label>Avisar por</label><div class="choices">@for (c of ['app','correo']; track c) {<span class="choice" [class.on]="form.config.notificar_por.includes(c)" (click)="alternarAviso(c)">{{ c }}</span>}</div></div>
             </div>
@@ -124,6 +129,7 @@ export class ConfiguracionPage {
 
   constructor() { this.cargar(); }
   nombreIdioma(c: string): string { return ({ es: 'Español', pt: 'Português', en: 'English' } as Record<string, string>)[c] || c; }
+  umbralPct(): number { return Math.round(((this.form.config.umbral_contacto ?? 0.7) as number) * 100); }
   titulo(s: string): string { return (s || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()); }
   buscarNit(): void {
     this.ocupado.set(true); this.msgPerfil.set('');

@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import re
 
-from . import agente, empresas, ingest, notificaciones, perfil
+from . import agente, empresas, ingest, metrics, notificaciones, perfil, pipeline
+from .config import config
 from .sources import CONECTORES
 
 PASOS = ("empresa", "sitio", "propuesta", "pauta", "buscar", "listo")
@@ -23,6 +24,7 @@ NO_SABE = re.compile(r"\b(no\s+s[eé]|ni\s+idea|no\s+tengo\s+el\s+dato|no\s+lo\s
 DESPUES = re.compile(r"\b(despu[eé]s|luego|ahora\s+no|todav[ií]a\s+no|m[aá]s\s+tarde|no)\b", re.I)
 REINICIA = re.compile(r"\b(empezar\s+de\s+nuevo|volver\s+a\s+empezar|reinici\w*|otra\s+empresa|cambiar\s+(?:de\s+)?empresa|desde\s+el\s+principio|borr\w*\s+todo)\b", re.I)
 SI_BUSCA = re.compile(r"^\W*(s[ií]|busca\w*|dale|claro|hazlo|de\s+una|ok|okey|listo|va|adelante|empieza|arranca|as[ií])\b", re.I)
+CONTACTA = re.compile(r"\b(contact\w*|ll[aá]m\w*|escr[ií]b\w*|env[ií]\w*|lote|arma\w*)\b", re.I)
 
 FUENTE_POR_SECTOR = {"salud": "reps", "educacion": "men", "turismo": "rnt"}
 TODAS_CO = ("reps", "men", "rnt", "secop", "rues")   # lo que entra con "todas las fuentes" (OSM queda fuera: pide el tipo de negocio en inglés)
@@ -106,7 +108,7 @@ def _ofrecer_busqueda(empresa_id: int, datos: dict, antes: str) -> dict:
     return {"respuesta": antes + " ¿Busco ya empresas con esto?\n\n" + plan["respuesta"].split("\n\n", 1)[-1], "paso": "buscar", "datos": datos}
 
 
-def responder(empresa_id: int, mensaje: str, estado: dict | None) -> dict:
+def responder(empresa_id: int, mensaje: str, estado: dict | None, usuario: str = "") -> dict:
     """Un turno del asistente de inicio. Devuelve la respuesta, el estado nuevo y, al final, lo guardado."""
     estado = estado or {}
     paso = estado.get("paso") if estado.get("paso") in PASOS else "empresa"
@@ -199,9 +201,9 @@ def responder(empresa_id: int, mensaje: str, estado: dict | None) -> dict:
     if paso == "buscar":
         if DESPUES.search(m) and len(m) <= 30:
             return {"respuesta": "Cuando quiera, en Buscar lo hacemos conversando. Ya puede ver lo guardado en Configuración.", "paso": "listo", "datos": datos, "listo": True}
-        rb = responder_busqueda(empresa_id, m, {"paso": "plan", "datos": datos.get("buscar") or {}})
-        datos["buscar"] = rb["datos"]
-        return {**rb, "paso": "listo" if rb.get("listo") else "buscar", "datos": datos}
+        rb = responder_busqueda(empresa_id, m, {"paso": datos.get("paso_busqueda") or "plan", "datos": datos.get("buscar") or {}}, usuario=usuario)
+        datos["buscar"], datos["paso_busqueda"] = rb["datos"], rb["paso"]
+        return {**rb, "paso": "buscar", "datos": datos, "listo": bool(rb.get("listo"))}
 
     if m:
         return responder(empresa_id, m, {"paso": "empresa"})   # ya terminó y escribe de nuevo: otra vuelta
@@ -299,7 +301,7 @@ def buscar_ahora(empresa_id: int, fuentes: list[str], ciudades: list[str], param
     return {**cuenta, "por_fuente": por_fuente, "errores": errores, "fuentes": fuentes, "ciudades": ciudades}
 
 
-def _texto_resultado(r: dict) -> str:
+def _texto_resultado(r: dict, cfg: dict) -> str:
     partes = [f"{_nombre_fuente(f)} {n}" for f, n in r["por_fuente"].items()]
     t = f"Listo. Empresas nuevas: {r['nuevos']}" + (f" ({', '.join(partes)})" if partes else "")
     t += f". Encajan con su cliente ideal: {r['pasa']}; por revisar: {r['revisar']}."
@@ -307,15 +309,60 @@ def _texto_resultado(r: dict) -> str:
         t += " Fallaron: " + "; ".join(r["errores"]) + "."
     if r["nuevos"] == 0:
         t += " Puede que ya las tuviera todas o que no haya en esa ciudad: pruebe otra ciudad u otra fuente."
-    return t + "\n\nVéalas en Leads. Si quiere otra búsqueda, dígame otra ciudad, otro sector u otra fuente."
+    t += "\n\nVéalas en Leads. Si quiere otra búsqueda, dígame otra ciudad, otro sector u otra fuente."
+    umbral = int(round(float(cfg.get("umbral_contacto") or 0.7) * 100))
+    canales = " y ".join(metrics.NOMBRE_CANAL.get(c, c) for c in (cfg.get("canales") or ["voz", "correo"]))
+    if cfg.get("contacto_automatico"):
+        t += (f"\n\nEl contacto automático está activo: en cada hora del horario legal la brújula arma un lote con las de mejor encaje "
+              f"(mínimo {umbral} %), hasta {cfg.get('presupuesto_lote', 20)} por lote, por {canales}. Si quiere uno ahora, diga 'contacta'.")
+    else:
+        t += (f"\n\n¿Quiere que contacte ya a las que encajan? Diga 'contacta' y armo un lote con las de mejor encaje (mínimo {umbral} %), "
+              f"hasta {cfg.get('presupuesto_lote', 20)} contactos por {canales}. Para que la brújula lo haga sola en cada ventana legal, "
+              "active el contacto automático en Configuración.")
+    return t
 
 
-def responder_busqueda(empresa_id: int, mensaje: str, estado: dict | None) -> dict:
-    """Un turno del asistente de búsqueda: propone fuentes y ciudades, acepta cambios y corre la búsqueda cuando la persona confirma."""
+def contactar_ahora(empresa_id: int, usuario: str = "") -> dict:
+    """Lo mismo que el botón de Lotes: un lote repartido por la brújula entre las que encajan, enviado de una vez."""
+    r = pipeline.preparar_lote(modo="brujula", usuario=usuario, empresa_id=empresa_id)
+    if "lote_id" in r:
+        r["envio"] = pipeline.ejecutar_lote(r["lote_id"])
+    return r
+
+
+def _texto_lote(r: dict) -> str:
+    if "error" in r:
+        t = r["error"]
+        if r.get("fuera_ventana"):
+            t += (" Puede desactivar el horario de la Ley 2300 en Configuración bajo su responsabilidad, o activar el contacto automático "
+                  "y la brújula lo hará sola en la próxima ventana legal.")
+        return t
+    reparto = ", ".join(f"{metrics.nombre_cruce(k)} {v}" for k, v in (r.get("reparto") or {}).items())
+    t = f"Lote {r['lote_id']} en marcha: {r['intentos']} contactos ({reparto}). {r.get('explicacion', '')}".strip()
+    res = (r.get("envio") or {}).get("resultado") or {}
+    if res:
+        t += " Envío: " + ", ".join(f"{k.replace(':', ' ')} {v}" for k, v in res.items()) + "."
+    if r.get("omitidos"):
+        t += " Omitidos: " + ", ".join(f"{k} {v}" for k, v in r["omitidos"].items()) + "."
+    if config.modo_prueba:
+        t += " Modo prueba: las llamadas salen al número de prueba y los correos a los del equipo, con los datos reales de cada empresa."
+    if r.get("fuera_ventana"):
+        t += " Salió fuera del horario legal con constancia en la bitácora."
+    return t + "\n\nSiga el avance en Lotes; las respuestas llegan a Leads y a Notificaciones."
+
+
+def responder_busqueda(empresa_id: int, mensaje: str, estado: dict | None, usuario: str = "") -> dict:
+    """Un turno del asistente de búsqueda: propone fuentes y ciudades, acepta cambios, corre la búsqueda cuando la persona confirma
+    y, después, ofrece contactar a las que encajan."""
     estado = estado or {}
     datos = dict(estado.get("datos") or {})
     m = (mensaje or "").strip()
     icp = empresas.icp_de(empresa_id)
+    cfg = empresas.config_de(empresa_id)
+
+    if estado.get("paso") == "hecho" and m and (CONTACTA.search(m) or (SI_BUSCA.search(m) and len(m) <= 30 and not PERO.search(m))):
+        r = contactar_ahora(empresa_id, usuario)
+        return {"respuesta": _texto_lote(r), "paso": "hecho", "datos": datos, "listo": True, "lote": r}
 
     def plan(antes: str = "") -> dict:
         fuentes, parametros = _fuentes_para(icp)
@@ -346,7 +393,7 @@ def responder_busqueda(empresa_id: int, mensaje: str, estado: dict | None) -> di
         if not datos.get("fuentes"):
             plan()
         r = buscar_ahora(empresa_id, datos["fuentes"], datos.get("ciudades") or [], datos.get("parametros") or {})
-        return {"respuesta": _texto_resultado(r), "paso": "hecho", "datos": datos, "listo": True, "resultado": r}
+        return {"respuesta": _texto_resultado(r, cfg), "paso": "hecho", "datos": datos, "listo": True, "resultado": r}
     t = _sin_tildes(m.lower())
     for c in ciudades:
         t = t.replace(c.lower(), " ")

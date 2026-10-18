@@ -18,7 +18,7 @@ import { ChatBrujula } from './chat';
 export class BuscarPage {
   private api = inject(ApiService);
   pedir = (m: string, estado: any) => this.api.asistenteBuscar(m, estado);
-  pistas = { plan: '"Sí", "en Medellín", "clínicas dentales en Cali", "reps y men", "fuentes"…', hecho: 'Otra ciudad, otro sector u otra fuente para buscar de nuevo' };
-  atajos = { plan: ['Sí, busca así', 'Ver las fuentes'] };
-  esperas = { plan: 'Buscando en las fuentes públicas…', hecho: 'Un momento…' };
+  pistas = { plan: '"Sí", "en Medellín", "clínicas dentales en Cali", "todas las fuentes", "fuentes"…', hecho: '"Contacta" para armar el lote, u otra ciudad, sector o fuente para buscar de nuevo' };
+  atajos = { plan: ['Sí, busca así', 'Todas las fuentes', 'Ver las fuentes'], hecho: ['Contacta a las que encajan'] };
+  esperas = { plan: 'Buscando en las fuentes públicas…', hecho: 'Armando el lote y enviando…' };
 }

@@ -374,6 +374,9 @@ def cron_lote(request: Request, n: int | None = None):
         return JSONResponse({"error": "clave de cron inválida"}, status_code=401)
     salida = {}
     for e in empresas.listar():
+        if not empresas.config_de(e.id).get("contacto_automatico"):
+            salida[e.id] = {"omitido": "contacto automático apagado en la configuración de la empresa"}
+            continue
         r = pipeline.preparar_lote(n=n, modo="brujula", empresa_id=e.id)
         if "lote_id" in r:
             r["envio"] = pipeline.ejecutar_lote(r["lote_id"])
@@ -683,14 +686,15 @@ class AsistenteEntrada(BaseModel):
 def api_asistente(request: Request, entrada: AsistenteEntrada):
     """Asistente de inicio por chat: cómo se presenta la empresa, su cliente ideal y el costo por pauta, en cuatro turnos."""
     from .. import asistente
-    return asistente.responder(empresa_de(request), entrada.mensaje, entrada.estado)
+    return asistente.responder(empresa_de(request), entrada.mensaje, entrada.estado, usuario=usuario_de(request).get("email", ""))
 
 
 @app.post("/api/asistente/buscar")
 def api_asistente_buscar(request: Request, entrada: AsistenteEntrada):
-    """Buscar conversando: la brújula propone fuentes y ciudades a partir del cliente ideal, la persona corrige y confirma, y se corre la búsqueda."""
+    """Buscar conversando: la brújula propone fuentes y ciudades a partir del cliente ideal, la persona corrige y confirma, corre la búsqueda
+    y ofrece contactar a las que encajan."""
     from .. import asistente
-    return asistente.responder_busqueda(empresa_de(request), entrada.mensaje, entrada.estado)
+    return asistente.responder_busqueda(empresa_de(request), entrada.mensaje, entrada.estado, usuario=usuario_de(request).get("email", ""))
 
 
 @app.post("/api/nit")

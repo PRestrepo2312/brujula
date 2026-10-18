@@ -123,17 +123,29 @@ def calcular(empresa_id: int = 1) -> dict:
             "canales": dict(canales), "cruces": dict(cruces), "recomendacion": rec, "comparacion_pauta": comparacion}
 
 
+NOMBRE_FUENTE = {"reps": "Salud (REPS)", "men": "Colegios (MEN)", "rnt": "Turismo (RNT)", "secop": "Proveedores del Estado (SECOP)",
+                 "rues": "Recién matriculadas (RUES)", "osm": "Mapa (OSM)", "csv": "Lista propia", "whatsapp": "WhatsApp entrante",
+                 "denue": "México (DENUE)", "cnpj": "Brasil (CNPJ)", "nyc": "Nueva York (licencias)"}
+NOMBRE_CANAL = {"correo": "correo", "voz": "llamada", "whatsapp": "WhatsApp"}
+
+
+def nombre_cruce(clave: str) -> str:
+    """'rnt|correo' → 'Turismo (RNT) + correo': lo que lee una persona que no conoce las siglas."""
+    fuente, _, canal = clave.partition("|")
+    return f"{NOMBRE_FUENTE.get(fuente, fuente)} + {NOMBRE_CANAL.get(canal, canal)}"
+
+
 def recomendacion(cruces: dict) -> str:
     con_cplq = [(k, v) for k, v in cruces.items() if v.get("cplq")]
     if len(con_cplq) >= 2:
         con_cplq.sort(key=lambda kv: kv[1]["cplq"])
         mejor, peor = con_cplq[0], con_cplq[-1]
         veces = peor[1]["cplq"] / mejor[1]["cplq"] if mejor[1]["cplq"] else 0
-        return (f"Mejor por lead calificado: {mejor[0].replace('|', ' + ')} (USD {mejor[1]['cplq']:.2f}). "
-                f"{peor[0].replace('|', ' + ')} cuesta {veces:.1f} veces más (USD {peor[1]['cplq']:.2f}): el siguiente lote va al mejor.")
+        return (f"Mejor por lead calificado: {nombre_cruce(mejor[0])} (USD {mejor[1]['cplq']:.2f}). "
+                f"{nombre_cruce(peor[0])} cuesta {veces:.1f} veces más (USD {peor[1]['cplq']:.2f}): el siguiente lote va al mejor.")
     con_cpl = [(k, v) for k, v in cruces.items() if v.get("cpl")]
     if len(con_cpl) >= 2:
         con_cpl.sort(key=lambda kv: kv[1]["cpl"])
-        return (f"Aún sin calificaciones. Por lead que respondió, lo más barato es {con_cpl[0][0].replace('|', ' + ')} "
-                f"(USD {con_cpl[0][1]['cpl']:.2f}) y lo más caro {con_cpl[-1][0].replace('|', ' + ')} (USD {con_cpl[-1][1]['cpl']:.2f}).")
+        return (f"Aún sin calificaciones. Por lead que respondió, lo más barato es {nombre_cruce(con_cpl[0][0])} "
+                f"(USD {con_cpl[0][1]['cpl']:.2f}) y lo más caro {nombre_cruce(con_cpl[-1][0])} (USD {con_cpl[-1][1]['cpl']:.2f}).")
     return "Todavía no hay respuestas suficientes para comparar canales: el reparto sigue los valores iniciales."

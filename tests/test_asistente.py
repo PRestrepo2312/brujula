@@ -1,4 +1,4 @@
-from brujula import asistente, empresas, ingest, perfil
+from brujula import asistente, empresas, ingest, perfil, pipeline
 from brujula.icp import ICP
 
 
@@ -58,6 +58,15 @@ def test_asistente_busqueda_propone_corrige_y_busca(monkeypatch):
     assert r2["datos"]["fuentes"] == ["reps", "men"]
     r3 = asistente.responder_busqueda(e.id, "sí", r2)
     assert r3["listo"] and r3["resultado"]["nuevos"] == 12 and [c for _, c in llamadas] == ["BOGOTA", "MEDELLIN"]
+    assert "contacta" in r3["respuesta"] and "70 %" in r3["respuesta"]   # ofrece el lote y dice el umbral
+    # "contacta" arma y envía un lote como el botón de Lotes
+    monkeypatch.setattr(pipeline, "preparar_lote", lambda **kw: {"lote_id": 9, "reparto": {"reps|correo": 3}, "explicacion": "Reparto inicial.", "intentos": 3, "omitidos": {}, "fuera_ventana": False})
+    monkeypatch.setattr(pipeline, "ejecutar_lote", lambda lote_id: {"lote_id": lote_id, "resultado": {"correo:enviado:resend": 3}})
+    rc = asistente.responder_busqueda(e.id, "contacta a las que encajan", r3, usuario="prueba@x.co")
+    assert rc["listo"] and rc["lote"]["lote_id"] == 9 and "Lote 9" in rc["respuesta"] and "Salud (REPS) + correo 3" in rc["respuesta"]
+    monkeypatch.setattr(pipeline, "preparar_lote", lambda **kw: {"error": "No se puede contactar ahora: domingo.", "fuera_ventana": True})
+    rf = asistente.responder_busqueda(e.id, "contacta", rc)
+    assert "No se puede contactar ahora" in rf["respuesta"] and "contacto automático" in rf["respuesta"]
     r4 = asistente.responder_busqueda(e.id, "fuentes", r3)
     assert "SECOP" in r4["respuesta"] and r4["paso"] == "plan"
     r5 = asistente.responder_busqueda(e.id, "mejor hoteles y agencias de viajes en Cartagena", r4)   # otro cliente ideal: fuentes nuevas

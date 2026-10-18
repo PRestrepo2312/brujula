@@ -24,9 +24,21 @@ def _canales(empresa_id: int) -> tuple[str, ...]:
     return tuple(activos) or CANALES_POSIBLES
 
 
+def _contactables(empresa_id: int) -> list:
+    """Condiciones de un lead que puede entrar en un lote: encaja, está listo y, si la empresa subió el umbral, con ese encaje mínimo."""
+    cond = [Lead.empresa_id == empresa_id, Lead.duplicado_de.is_(None), Lead.icp_estado == "pasa", Lead.estado == "listo"]
+    try:
+        umbral = float(config_de(empresa_id).get("umbral_contacto") or 0.7)
+    except (TypeError, ValueError):
+        umbral = 0.7
+    if umbral > 0.7:
+        cond.append(Lead.icp_score >= umbral)
+    return cond
+
+
 def _brazos(s, empresa_id: int) -> list[Brazo]:
     canales = _canales(empresa_id)
-    leads = s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.duplicado_de.is_(None), Lead.icp_estado == "pasa", Lead.estado == "listo")).all()
+    leads = s.exec(select(Lead).where(*_contactables(empresa_id))).all()
     intentos = s.exec(select(Intento).where(Intento.empresa_id == empresa_id)).all()
     lead_por_id = {l.id: l for l in s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.duplicado_de.is_(None))).all()}
     calificados = {c.lead_id for c in s.exec(select(Calificacion).where(Calificacion.empresa_id == empresa_id, Calificacion.resultado == "calificado")).all()}
@@ -82,8 +94,7 @@ def preparar_lote(n: int | None = None, modo: str = "brujula", reparto: dict[str
         omitidos = defaultdict(int)
         for clave, cupo in reparto.items():
             fuente, canal = clave.split("|", 1)
-            leads = s.exec(select(Lead).where(Lead.empresa_id == empresa_id, Lead.duplicado_de.is_(None), Lead.icp_estado == "pasa", Lead.estado == "listo",
-                                              Lead.fuente_clave == fuente).order_by(Lead.icp_score.desc(), Lead.id)).all()
+            leads = s.exec(select(Lead).where(*_contactables(empresa_id), Lead.fuente_clave == fuente).order_by(Lead.icp_score.desc(), Lead.id)).all()
             for l in leads:
                 if cupo <= 0:
                     break

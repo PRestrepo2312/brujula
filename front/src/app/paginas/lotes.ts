@@ -7,7 +7,7 @@ import { AuthService } from '../core/auth.service';
   selector: 'pagina-lotes',
   imports: [FormsModule],
   template: `
-    <div class="page-head"><div><span class="eyebrow">Lotes</span><h1>Contactar <em>por tandas</em></h1><p>Cada lote reparte un número de contactos entre fuentes y canales; la brújula decide el reparto con lo que ya funcionó y lo explica en una frase.</p></div></div>
+    <div class="page-head"><div><span class="eyebrow">Lotes</span><h1>Contactar <em>por tandas</em></h1><p>Un lote toma las empresas que encajan con su cliente ideal (encaje mínimo el que fije en Configuración, 70 % por defecto) y que todavía no se han contactado, las ordena por encaje y las reparte entre fuentes y canales según lo que ya funcionó. Puede lanzarlo aquí, pedirlo en el chat de Buscar escribiendo "contacta", o dejarlo automático en <a routerLink="/configuracion">Configuración</a>: la brújula lo hace sola cada hora dentro del horario legal.</p></div></div>
     <div class="grid cols-main">
       <div>
         <div class="card">

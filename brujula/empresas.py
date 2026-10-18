@@ -13,6 +13,8 @@ from .models import EMPRESA_DEMO, Empresa
 CONFIG_DEFECTO = {
     "canales": ["voz", "correo"],
     "presupuesto_lote": 20,
+    "contacto_automatico": False,  # True = el cron de la ventana legal arma y envía lotes solo; False = solo cuando la persona lo pide (Lotes o el chat)
+    "umbral_contacto": 0.7,        # encaje mínimo para entrar en un lote (0.7 = lo que la brújula considera "encaja"; la empresa puede subirlo)
     "notificar_por": ["app", "correo"],
     "remitente": "",
     "respetar_ley_2300": True,     # False = la empresa asume la responsabilidad de contactar fuera del horario legal (queda en la bitácora)
