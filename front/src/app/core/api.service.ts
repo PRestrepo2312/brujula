@@ -12,6 +12,7 @@ export interface Metricas {
   calculado_en: string; recomendacion: string;
   embudo: { encontrados: number; del_perfil: number; a_revisar: number; contactados: number; respondieron: number; calificados: number; no_calificados: number; costo_total_usd: number; cpl_global: number | null; cplq_global: number | null };
   fuentes: Record<string, any>; canales: Record<string, any>; cruces: Record<string, any>;
+  comparacion_pauta?: { pauta_usd: number; brujula_usd: number | null; base: string | null; veces: number | null } | null;
 }
 
 /** Todas las rutas de la API de Brújula. El interceptor pone el JWT. */
@@ -51,6 +52,7 @@ export class ApiService {
   crearUsuario(cuerpo: { email: string; empresa_id: number; rol: string }): Observable<any> { return this.http.post(`${this.base}/api/usuarios`, cuerpo); }
   registro(cuerpo: { empresa: string; email: string; clave: string; icp_texto: string; nit?: string; rues?: any }): Observable<any> { return this.http.post(`${this.base}/api/registro`, cuerpo); }
   nit(nit: string): Observable<any> { return this.http.post(`${this.base}/api/nit`, { nit }); }
+  asistente(mensaje: string, estado: any): Observable<any> { return this.http.post(`${this.base}/api/asistente`, { mensaje, estado }); }
   sitio(url: string): Observable<any> { return this.http.post(`${this.base}/api/empresa/sitio`, { url }); }
   sugerir(cuerpo: { nombre: string; rues?: any; sitio?: any; notas?: string }): Observable<any> { return this.http.post(`${this.base}/api/empresa/sugerir`, cuerpo); }
   notificaciones(noLeidas = false): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/notificaciones`, { params: { no_leidas: noLeidas } }); }

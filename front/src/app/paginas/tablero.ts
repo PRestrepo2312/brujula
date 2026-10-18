@@ -31,6 +31,39 @@ import { ApiService, Metricas } from '../core/api.service';
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1.3" fill="#fff"/><path d="M15.6 8.4 13.5 13.5 8.4 15.6l2.1-5.1z" fill="#93B4FF" stroke="none"/></svg></div>
         <div><span class="eyebrow">La brújula dice</span><div class="texto">{{ m.recomendacion }}</div></div>
       </div>
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card">
+          <div class="card-head"><h2>Costo contra calidad</h2><span class="muted small">cada burbuja es una fuente y un canal; su tamaño, cuántos contactos</span></div>
+          @if (burbujas().length) {
+            <svg viewBox="0 0 520 300" class="cuadrantes" role="img" aria-label="Costo por respuesta contra porcentaje de calificados">
+              <rect x="56" y="14" width="448" height="236" fill="#F7F9FD" stroke="#E4E8F0"/>
+              <line [attr.x1]="56 + 448 * ejes().xMed" y1="14" [attr.x2]="56 + 448 * ejes().xMed" y2="250" stroke="#CBD3E1" stroke-dasharray="4 4"/>
+              <line x1="56" [attr.y1]="250 - 236 * ejes().yMed" x2="504" [attr.y2]="250 - 236 * ejes().yMed" stroke="#CBD3E1" stroke-dasharray="4 4"/>
+              <text x="62" y="30" class="cuadrante">caros y buenos</text><text x="498" y="30" class="cuadrante" text-anchor="end">caros y flojos</text>
+              <text x="62" y="244" class="cuadrante">baratos y flojos</text><text x="498" y="244" class="cuadrante" text-anchor="end">baratos y buenos</text>
+              @for (b of burbujas(); track b.clave) {
+                <circle [attr.cx]="b.x" [attr.cy]="b.y" [attr.r]="b.r" fill="#2563EB" fill-opacity=".22" stroke="#2563EB" stroke-width="1.5"/>
+                <text [attr.x]="b.x" [attr.y]="b.y - b.r - 4" text-anchor="middle" class="etiqueta">{{ b.clave }}</text>
+              }
+              <text x="280" y="282" text-anchor="middle" class="eje">Costo por respuesta, USD (menos es mejor) →</text>
+              <text x="18" y="132" text-anchor="middle" class="eje" transform="rotate(-90 18 132)">Calificados, % (más es mejor) →</text>
+            </svg>
+          } @else { <div class="empty"><b>Todavía no hay respuestas</b>Cuando los leads respondan y Dapta califique, cada fuente y canal aparece aquí según lo que cuesta y lo que trae.</div> }
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Brújula contra pauta</h2><span class="muted small">el costo de pauta lo escribe la empresa, no es un dato inventado</span></div>
+          @if (m.comparacion_pauta; as cp) {
+            <div class="grid cols-2">
+              <div class="kpi" style="padding:0"><div class="label"><span>Con Brújula</span></div><div class="value" style="font-size:30px">USD {{ cp.brujula_usd != null ? (cp.brujula_usd | number:'1.2-2') : '–' }}</div><div class="sub" style="border:0;padding-top:4px">por lead {{ cp.base === 'calificado' ? 'calificado' : cp.base === 'respuesta' ? 'que respondió' : '(sin datos todavía)' }}</div></div>
+              <div class="kpi" style="padding:0"><div class="label"><span>Con pauta</span></div><div class="value" style="font-size:30px">USD {{ cp.pauta_usd | number:'1.2-2' }}</div><div class="sub" style="border:0;padding-top:4px">por lead, según la empresa</div></div>
+            </div>
+            @if (cp.veces) {<div class="banner banner-ok" style="margin-bottom:0"><b>{{ cp.veces }} veces más barato</b> con Brújula que con pauta, medido con lo que ya pasó.</div>}
+            @else {<div class="banner" style="margin-bottom:0">Cuando haya leads que respondan o se califiquen, aquí aparece el ahorro frente a la pauta.</div>}
+          } @else {
+            <div class="empty"><b>¿Cuánto le cuesta hoy un cliente por pauta?</b>Dígaselo a la brújula en el <a routerLink="/inicio">asistente de inicio</a> o escríbalo en <a routerLink="/configuracion">Configuración</a> y aquí verá el ahorro.</div>
+          }
+        </div>
+      </div>
       <div class="grid cols-main" style="margin-top:16px">
         <div>
           <div class="card">
@@ -68,11 +101,11 @@ import { ApiService, Metricas } from '../core/api.service';
           <div class="card">
             <h2>Por canal</h2>
             <div class="table-wrap"><table class="table">
-              <thead><tr><th>Canal</th><th class="num">Enviados</th><th class="num">Resp.</th><th class="num">Tasa</th><th class="num">Calif.</th><th class="num">Costo/calificado</th></tr></thead>
+              <thead><tr><th>Canal</th><th class="num">Enviados</th><th class="num">Resp.</th><th class="num">% resp.</th><th class="num">Calif.</th><th class="num">% calif.</th><th class="num">Costo/calificado</th></tr></thead>
               <tbody>
                 @for (c of m.canales | keyvalue; track c.key) {
-                  <tr><td>{{ c.key }}</td><td class="num">{{ c.value.enviados }}</td><td class="num">{{ c.value.respondieron }}</td><td class="num">{{ c.value.tasa_respuesta != null ? (c.value.tasa_respuesta * 100 | number:'1.0-1') + '%' : '–' }}</td><td class="num">{{ c.value.calificados }}</td><td class="num"><b>{{ c.value.cplq ?? '–' }}</b></td></tr>
-                } @empty { <tr><td colspan="6"><div class="empty">Sin contactos.</div></td></tr> }
+                  <tr><td>{{ c.key }}</td><td class="num">{{ c.value.enviados }}</td><td class="num">{{ c.value.respondieron }}</td><td class="num">{{ c.value.tasa_respuesta != null ? (c.value.tasa_respuesta * 100 | number:'1.0-1') + '%' : '–' }}</td><td class="num">{{ c.value.calificados }}</td><td class="num"><b>{{ c.value.tasa_calificacion != null ? (c.value.tasa_calificacion * 100 | number:'1.0-1') + '%' : '–' }}</b></td><td class="num"><b>{{ c.value.cplq ?? '–' }}</b></td></tr>
+                } @empty { <tr><td colspan="7"><div class="empty">Sin contactos.</div></td></tr> }
               </tbody>
             </table></div>
           </div>
@@ -80,6 +113,12 @@ import { ApiService, Metricas } from '../core/api.service';
       </div>
     } @else { <p class="muted">Cargando…</p> }
   `,
+  styles: [`
+    .cuadrantes { width: 100%; height: auto; display: block; }
+    .cuadrante { font-family: var(--mono); font-size: 9px; fill: #8A94A8; letter-spacing: .08em; text-transform: uppercase; }
+    .etiqueta { font-size: 11px; font-weight: 600; fill: var(--ink); }
+    .eje { font-size: 11px; fill: var(--muted); }
+  `],
 })
 export class TableroPage {
   private api = inject(ApiService);
@@ -99,6 +138,20 @@ export class TableroPage {
       .map(([n, v]) => ({ nombre: n as string, valor: v as number, pct: Math.round(((v as number) / max) * 100) }));
   }
   pctCalificados(m: Metricas): string { const c = m.embudo.contactados || 0; return c ? Math.round((m.embudo.calificados / c) * 100) + '%' : '0%'; }
+
+  /** Burbujas del cuadrante costo contra calidad: X = costo por respuesta (USD), Y = % de calificados sobre los que respondieron, tamaño = enviados. */
+  burbujas(): { clave: string; x: number; y: number; r: number }[] {
+    const cruces = this.m()?.cruces || {};
+    const puntos = Object.entries(cruces).filter(([, v]: any) => v.cpl != null && v.enviados > 0).map(([k, v]: any) => ({ clave: k.replace('|', ' · '), cpl: v.cpl as number, tasa: (v.tasa_calificacion ?? 0) as number, n: v.enviados as number }));
+    if (!puntos.length) return [];
+    const maxCpl = Math.max(...puntos.map((p) => p.cpl), 0.01); const maxN = Math.max(...puntos.map((p) => p.n), 1);
+    return puntos.map((p) => ({ clave: p.clave, x: 56 + 448 * (0.08 + 0.84 * (p.cpl / maxCpl)), y: 250 - 236 * (0.1 + 0.8 * Math.min(1, p.tasa)), r: 8 + 22 * Math.sqrt(p.n / maxN) }));
+  }
+  ejes(): { xMed: number; yMed: number } {
+    const b = this.burbujas(); if (!b.length) return { xMed: 0.5, yMed: 0.5 };
+    const med = (xs: number[]) => { const s = [...xs].sort((a, c) => a - c); return s[Math.floor(s.length / 2)]; };
+    return { xMed: (med(b.map((p) => p.x)) - 56) / 448, yMed: (250 - med(b.map((p) => p.y))) / 236 };
+  }
   fecha(iso: string): string { try { return new Date(iso + (iso.endsWith('Z') ? '' : 'Z')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }); } catch { return iso; } }
 
   sincronizar(): void {

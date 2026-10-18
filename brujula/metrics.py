@@ -107,8 +107,20 @@ def calcular(empresa_id: int = 1) -> dict:
 
     # --- recomendación en una frase ---
     rec = recomendacion(cruces)
+    # Brújula contra pauta: lo que la empresa dice que le cuesta hoy un lead por pauta (lo escribe ella en el asistente; no inventamos referencias).
+    from .empresas import config_de
+    pauta = config_de(empresa_id).get("costo_lead_pauta_usd")
+    comparacion = None
+    try:
+        pauta = float(pauta) if pauta is not None else None
+    except (TypeError, ValueError):
+        pauta = None
+    if pauta:
+        brujula = embudo.get("cplq_global") or embudo.get("cpl_global")
+        comparacion = {"pauta_usd": pauta, "brujula_usd": brujula, "base": "calificado" if embudo.get("cplq_global") else ("respuesta" if embudo.get("cpl_global") else None),
+                       "veces": round(pauta / brujula, 1) if brujula else None}
     return {"calculado_en": datetime.utcnow().isoformat(timespec="seconds"), "embudo": embudo, "fuentes": dict(fuentes),
-            "canales": dict(canales), "cruces": dict(cruces), "recomendacion": rec}
+            "canales": dict(canales), "cruces": dict(cruces), "recomendacion": rec, "comparacion_pauta": comparacion}
 
 
 def recomendacion(cruces: dict) -> str:

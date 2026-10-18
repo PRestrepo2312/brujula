@@ -55,6 +55,13 @@ import { ApiService } from '../core/api.service';
             <thead><tr><th>#</th><th>Canal</th><th>Proveedor</th><th>Estado</th><th>Respuesta</th><th class="num">Costo USD</th><th>Cuándo</th></tr></thead>
             <tbody>@for (it of d.intentos; track it.id) {<tr><td class="muted">{{ it.id }}</td><td>{{ it.canal }}</td><td>{{ it.proveedor }}</td><td>{{ it.estado }}@if (it.fuera_ventana) { <span class="tag tag-warn">override</span>}@if (it.detalle?.desvio) { <span class="tag tag-warn" [title]="'original: ' + it.detalle.desvio.original">desviado</span>}</td><td>{{ it.clasificacion || '–' }}</td><td class="num">{{ it.costo_usd | number:'1.4-4' }}</td><td class="muted small">{{ fecha(it.enviado_en) }}</td></tr>} @empty {<tr><td colspan="7"><div class="empty">Sin intentos todavía.</div></td></tr>}</tbody>
           </table></div>
+          @for (it of llamadas(d.intentos); track it.id) {
+            <h3>Llamada del agente de Dapta</h3>
+            @if (it.detalle?.resumen) {<p class="small"><b>Resumen:</b> {{ it.detalle.resumen }}</p>}
+            @if (it.detalle?.grabacion) {<audio controls [src]="it.detalle.grabacion" style="width:100%;margin:6px 0"></audio>}
+            @if (it.detalle?.transcripcion) {<details><summary class="small" style="cursor:pointer;color:var(--accent)">Ver la transcripción</summary><pre class="transcripcion">{{ it.detalle.transcripcion }}</pre></details>}
+            @if (it.detalle?.desvio) {<p class="small muted">Llamada desviada al número de prueba ({{ it.detalle.desvio.destino }}); el número real del lead era {{ it.detalle.desvio.original }}.</p>}
+          }
           @if (d.duplicados?.length) {<h3>Duplicados fusionados</h3>@for (x of d.duplicados; track x.id) {<p class="small">{{ x.razon_social }} <span class="muted">({{ x.fuente }})</span></p>}}
         </div>
         <div class="card">
@@ -68,6 +75,7 @@ import { ApiService } from '../core/api.service';
       </div>
     } @else { <p class="muted">Cargando…</p> }
   `,
+  styles: [`.transcripcion { white-space: pre-wrap; font: inherit; font-size: 12.5px; background: #F7F9FD; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; max-height: 320px; overflow: auto; }`],
 })
 export class LeadDetallePage {
   private api = inject(ApiService);
@@ -87,6 +95,7 @@ export class LeadDetallePage {
     this.api.respuesta(Number(this.id()), this.texto, this.canal).subscribe({ next: (r) => { this.msg.set(`Clasificada como ${r.clasificacion} (${r.motor}).`); this.texto = ''; this.cargar(Number(this.id())); this.ocupado.set(false); }, error: (e) => { this.msg.set(e.message); this.ocupado.set(false); } });
   }
   titulo(s: string): string { return (s || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()); }
+  llamadas(intentos: any[]): any[] { return (intentos || []).filter((it) => it.canal === 'voz' && it.proveedor === 'dapta' && (it.detalle?.resumen || it.detalle?.transcripcion || it.detalle?.grabacion)); }
   pares(o: any): [string, string][] {
     if (!o || typeof o !== 'object') return [];
     return Object.entries(o).map(([k, v]) => [k.replace(/_/g, ' '), typeof v === 'object' ? JSON.stringify(v) : String(v)]);

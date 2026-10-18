@@ -16,7 +16,12 @@ import { AuthService } from '../core/auth.service';
             <div class="card-head"><h2>{{ e.nombre }}</h2><button class="btn btn-primary" (click)="guardar()" [disabled]="ocupado()">Guardar cambios</button></div>
             @if (msg()) {<div class="banner banner-ok">{{ msg() }}</div>}
             <h2 style="margin-top:4px">Cómo se presenta</h2>
-            <p class="small muted">Lo que dicen los correos, los mensajes de WhatsApp y la llamada del agente en su nombre. <a routerLink="/inicio">Abrir el asistente de inicio</a> para proponerlo con su NIT y su página.</p>
+            <p class="small muted">Lo que dicen los correos, los mensajes de WhatsApp y la llamada del agente en su nombre. Puede dejar que la brújula lo proponga: <a routerLink="/inicio">conversar con el asistente</a>, o aquí mismo con el NIT y la página.</p>
+            <div class="row" style="margin-bottom:12px">
+              <button class="btn btn-secondary" (click)="buscarNit()" [disabled]="ocupado() || !form.config.perfil.nit">Buscar el NIT en el RUES</button>
+              <button class="btn btn-secondary" (click)="proponer()" [disabled]="ocupado()">Proponer con el agente</button>
+              @if (msgPerfil()) {<span class="small muted">{{ msgPerfil() }}</span>}
+            </div>
             <div class="grid cols-2">
               <div class="field"><label>Nombre con el que se presenta</label><input [(ngModel)]="form.config.perfil.nombre" [placeholder]="e.nombre"></div>
               <div class="field"><label>Quién firma</label><input [(ngModel)]="form.config.perfil.remitente" placeholder="el equipo de {{ e.nombre }}"></div>
@@ -27,6 +32,7 @@ import { AuthService } from '../core/auth.service';
               <div class="field"><label>Qué lo distingue</label><input [(ngModel)]="form.config.perfil.diferencial"></div>
               <div class="field"><label>NIT</label><input [(ngModel)]="form.config.perfil.nit"></div>
               <div class="field"><label>Página web</label><input [(ngModel)]="form.config.perfil.sitio_web"></div>
+              <div class="field"><label>Cuánto le cuesta hoy un cliente por pauta (USD)</label><input type="number" step="0.5" min="0" [(ngModel)]="form.config.costo_lead_pauta_usd" placeholder="25"><span class="hint">El tablero compara este valor con lo que cuesta un lead calificado con Brújula.</span></div>
             </div>
             <hr class="divider">
             <h2>Datos y canales</h2>
@@ -113,10 +119,25 @@ export class ConfiguracionPage {
   usuario = { email: '', empresa_id: 1, rol: 'usuario' };
   estado = signal<any>(null);
   fuentes = signal<any[]>([]);
-  msg = signal(''); msgAdmin = signal(''); ocupado = signal(false);
+  msg = signal(''); msgAdmin = signal(''); msgPerfil = signal(''); ocupado = signal(false);
+  private rues: any = null;
 
   constructor() { this.cargar(); }
   nombreIdioma(c: string): string { return ({ es: 'Español', pt: 'Português', en: 'English' } as Record<string, string>)[c] || c; }
+  titulo(s: string): string { return (s || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()); }
+  buscarNit(): void {
+    this.ocupado.set(true); this.msgPerfil.set('');
+    this.api.nit(this.form.config.perfil.nit).subscribe({
+      next: (r) => { this.rues = r; if (!this.form.config.perfil.nombre) this.form.config.perfil.nombre = this.titulo(r.sigla || r.razon_social); this.msgPerfil.set(`RUES: ${r.razon_social}, ${this.titulo(r.ciudad)}, sector ${r.sector}, matrícula ${r.matricula}.`); this.ocupado.set(false); },
+      error: (e) => { this.msgPerfil.set(e.error?.error || 'No se pudo consultar el RUES'); this.ocupado.set(false); } });
+  }
+  proponer(): void {
+    this.ocupado.set(true); this.msgPerfil.set('');
+    const p = this.form.config.perfil;
+    this.api.sugerir({ nombre: p.nombre || this.e()?.nombre || '', rues: this.rues, sitio: p.sitio_web ? { url: p.sitio_web } : null, notas: '' }).subscribe({
+      next: (r) => { const s = r.sugerencia || {}; p.que_ofrece = s.que_ofrece || p.que_ofrece; p.a_quien = s.a_quien || p.a_quien; p.diferencial = s.diferencial || p.diferencial; p.remitente = s.remitente || p.remitente; this.msgPerfil.set(`Propuesta lista (${r.motor === 'reglas' ? 'con los datos disponibles' : 'por el agente'}); revise y guarde.`); this.ocupado.set(false); },
+      error: (e) => { this.msgPerfil.set(e.error?.error || e.message); this.ocupado.set(false); } });
+  }
   cargar(): void {
     this.api.estado().subscribe((s) => this.estado.set(s));
     this.api.fuentes().subscribe((f) => this.fuentes.set(f.filter((x) => x.clave !== 'csv')));

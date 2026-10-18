@@ -366,7 +366,16 @@ def sincronizar_dapta(limite: int = 200, empresa_id: int = 1) -> dict:
             llamadas_previas = [x for x in (it.detalle or {}).get("llamadas", []) if x != call_id]
             it.duracion_seg = dur
             it.costo_usd = round(sum(float((it.detalle or {}).get("costos", {}).get(x, 0.0)) for x in llamadas_previas) + voz.costo_llamada(c), 4)
-            it.detalle = {**(it.detalle or {}), "call_id": call_id, "razon": razon, "resumen": resumen, "llamadas": llamadas_previas + [call_id],
+            # La transcripción y la grabación de una llamada contestada: para verlas en el detalle del lead (el agente de Dapta trabajando).
+            extra = {}
+            if dur > 0 and not (it.detalle or {}).get("transcripcion"):
+                try:
+                    det = c if c.get("transcript") else voz.mcp.llamada(call_id)
+                    det = det.get("call", det) if isinstance(det, dict) else {}
+                    extra = {"transcripcion": str(det.get("transcript") or "")[:4000], "grabacion": det.get("recording_url") or ""}
+                except Exception as ex:  # noqa: BLE001
+                    extra = {"transcripcion_error": str(ex)[:120]}
+            it.detalle = {**(it.detalle or {}), **extra, "call_id": call_id, "razon": razon, "resumen": resumen, "llamadas": llamadas_previas + [call_id],
                           "costos": {**(it.detalle or {}).get("costos", {}), call_id: voz.costo_llamada(c)}, "desde": c.get("from_number")}
             it.enviado_en = it.enviado_en or datetime.utcnow()
             exito = c.get("call_successful")

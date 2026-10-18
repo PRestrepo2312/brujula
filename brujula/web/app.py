@@ -665,6 +665,18 @@ class SugerenciaEntrada(BaseModel):
     notas: str = ""
 
 
+class AsistenteEntrada(BaseModel):
+    mensaje: str = ""
+    estado: dict | None = None
+
+
+@app.post("/api/asistente")
+def api_asistente(request: Request, entrada: AsistenteEntrada):
+    """Asistente de inicio por chat: cómo se presenta la empresa, su cliente ideal y el costo por pauta, en cuatro turnos."""
+    from .. import asistente
+    return asistente.responder(empresa_de(request), entrada.mensaje, entrada.estado)
+
+
 @app.post("/api/nit")
 def api_nit(entrada: NitEntrada):
     """Público (sirve en el registro): la empresa en el RUES por NIT, para llenar nombre, ciudad y sector sin escribirlos."""
