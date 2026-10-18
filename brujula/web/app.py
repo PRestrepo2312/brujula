@@ -429,7 +429,7 @@ def api_en_vivo(request: Request, limite: int = 40):
         nuevos = s.exec(select(func.count()).select_from(Lead).where(*vivos, Lead.creado_en >= desde)).one()
         contactados = s.exec(select(func.count()).select_from(Intento).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde,
                                                                             Intento.estado.notin_(("omitido", "cancelado", "programado", "fallido")))).one()
-        respondieron = s.exec(select(func.count()).select_from(Intento).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde, Intento.estado == "contestado")).one()
+        respondieron = s.exec(select(func.count()).select_from(Intento).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde, Intento.estado.in_(("contestado", "respondio")))).one()
         calificados = s.exec(select(func.count()).select_from(Calificacion).where(Calificacion.empresa_id == emp_id, Calificacion.resultado == "calificado")).one()
         costo = s.exec(select(func.coalesce(func.sum(Intento.costo_usd), 0.0)).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde)).one()
         por_ciudad = s.exec(select(Lead.ciudad, func.count()).where(*vivos).group_by(Lead.ciudad).order_by(func.count().desc())).all()
