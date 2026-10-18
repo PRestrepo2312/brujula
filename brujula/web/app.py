@@ -659,6 +659,20 @@ def api_registro(entrada: RegistroEntrada):
     except Exception as ex:  # noqa: BLE001
         return JSONResponse({"error": f"Cognito: {str(ex)[:200]}"}, status_code=400)
     anotar("registro", f"Empresa {e.id} '{nombre}' registrada por {email} (admin)", e.id, email=email)
+    # Bienvenida por el proveedor de correo (Brevo): al destinatario real, sin desvío; si falla, el registro igual queda hecho.
+    try:
+        from ..channels.correo import enviar_transaccional
+        from ..mensajes import html_aviso
+        base = config.public_base_url.rstrip("/")
+        parrafos = [f"Su empresa {nombre} quedó creada en Brújula y su usuario es {email}, con la clave que eligió.",
+                    "Primer paso: cuéntele a la brújula de su empresa (nombre, NIT, página) y ella propone cómo presentarse y a quién buscar.",
+                    "Después, en Buscar, le propone en qué registros públicos buscar y, con su permiso, contacta a las empresas que encajan por correo y llamada."]
+        ok, _ref, err = enviar_transaccional(email, "Bienvenido a Brújula", "\n\n".join(parrafos) + f"\n\nEntrar: {base}/app/inicio",
+                                             html_aviso("Bienvenido a Brújula", parrafos, f"{base}/app/inicio", "Entrar a Brújula"))
+        if not ok:
+            anotar("correo", f"Bienvenida a {email} no enviada: {err}", e.id)
+    except Exception as ex:  # noqa: BLE001
+        anotar("correo", f"Bienvenida a {email} no enviada: {str(ex)[:160]}", e.id)
     return {"ok": True, "empresa_id": e.id, "email": email}
 
 

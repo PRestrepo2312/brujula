@@ -30,10 +30,14 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
+  BrevoApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
   EmailProvider:
     Type: String
     Default: ses
-    AllowedValues: [ses, resend]
+    AllowedValues: [ses, resend, brevo]
   EmailFrom:
     Type: String
     Default: "Brujula <hola@example.com>"
@@ -136,7 +140,7 @@ Resources:
       Name: brujula/env
       SecretString: !Sub |
         {"DAPTA_API_KEY":"${DaptaApiKey}","DAPTA_AGENT_ID":"${DaptaAgentId}","DAPTA_SEQUENCE_ID":"${DaptaSequenceId}","DAPTA_TEXT_AGENT_ID":"${DaptaTextAgentId}",
-         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","OPENAI_API_KEY":"${OpenAiApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}","DENUE_TOKEN":"${DenueToken}",
+         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","OPENAI_API_KEY":"${OpenAiApiKey}","RESEND_API_KEY":"${ResendApiKey}","BREVO_API_KEY":"${BrevoApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}","DENUE_TOKEN":"${DenueToken}",
          "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
 
   # --- Archivos: bucket privado con URL prefirmadas ---

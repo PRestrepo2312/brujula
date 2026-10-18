@@ -61,7 +61,8 @@ class Config:
     openrouter_api_key: str = field(default_factory=lambda: _env("OPENROUTER_API_KEY"))
     jev_model: str = field(default_factory=lambda: _env("JEV_MODEL", "typesafe/jev-1.14"))
     resend_api_key: str = field(default_factory=lambda: _env("RESEND_API_KEY"))
-    email_provider: str = field(default_factory=lambda: _env("EMAIL_PROVIDER", "resend"))   # resend | ses
+    brevo_api_key: str = field(default_factory=lambda: _env("BREVO_API_KEY"))
+    email_provider: str = field(default_factory=lambda: _env("EMAIL_PROVIDER", "resend"))   # resend | ses | brevo
     aws_region: str = field(default_factory=lambda: _env("AWS_REGION", "us-east-1"))
     email_from: str = field(default_factory=lambda: _env("EMAIL_FROM", "Brújula <hola@example.com>"))
     cron_key: str = field(default_factory=lambda: _env("CRON_KEY"))
@@ -111,6 +112,8 @@ class Config:
 
     @property
     def correo_real(self) -> bool:
+        if self.email_provider == "brevo":
+            return bool(self.brevo_api_key)
         return bool(self.resend_api_key) if self.email_provider == "resend" else self.email_provider == "ses"
 
 

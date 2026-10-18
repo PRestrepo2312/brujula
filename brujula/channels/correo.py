@@ -52,6 +52,10 @@ class CanalCorreo(Canal):
                              mensaje=texto, detalle=detalle)
         if config.email_provider == "ses":
             return self._enviar_ses(destino, asunto, texto, html, urls, detalle)
+        if config.email_provider == "brevo":
+            ok, ref, err = enviar_transaccional(destino, asunto, texto, html, {"List-Unsubscribe": f"<{urls['baja']}>"})
+            return Resultado(estado="enviado" if ok else "fallido", costo_usd=config.tarifas.correo if ok else 0.0, ref_externa=ref or None,
+                             proveedor="brevo", mensaje=texto, detalle={**detalle, **({"error": err} if err else {})})
         cuerpo = {
             "from": config.email_from, "to": [destino], "subject": asunto, "text": texto, "html": html,
             "headers": {"List-Unsubscribe": f"<{urls['baja']}>"},
@@ -67,7 +71,7 @@ class CanalCorreo(Canal):
         except httpx.HTTPError as e:
             return Resultado(estado="fallido", proveedor="resend", mensaje=texto, detalle={**detalle, "error": str(e)[:300]})
 
-    def _enviar_ses(self, destino: str, asunto: str, texto: str, html: str, urls: dict, detalle: dict) -> Resultado:
+    def _enviar_ses(self, destino: str, asunto: str, texto: str, html: str, urls: dict, detalle: dict) -> Resultado:   # noqa: D102
         """Amazon SES (exige identidad verificada; en el sandbox también el destinatario). Los eventos llegan por SNS a /webhook/ses."""
         try:
             import boto3
@@ -82,3 +86,47 @@ class CanalCorreo(Canal):
             return Resultado(estado="enviado", costo_usd=config.tarifas.correo, ref_externa=r.get("MessageId"), proveedor="ses", mensaje=texto, detalle=detalle)
         except Exception as e:  # noqa: BLE001
             return Resultado(estado="fallido", proveedor="ses", mensaje=texto, detalle={**detalle, "error": str(e)[:300]})
+
+
+def _remitente() -> tuple[str, str]:
+    """EMAIL_FROM 'Brujula <hola@x.co>' → (nombre, dirección); Brevo los pide por separado."""
+    from email.utils import parseaddr
+    nombre, direccion = parseaddr(config.email_from)
+    return (nombre or "Brújula", direccion or config.email_from)
+
+
+def enviar_transaccional(destino: str, asunto: str, texto: str, html: str = "", cabeceras: dict | None = None) -> tuple[bool, str, str]:
+    """Un correo del sistema (bienvenida, notificación a la empresa, aviso) por el proveedor configurado, SIN desvío de modo prueba:
+    va al destinatario real. Devuelve (ok, referencia, error). Los correos a leads siguen pasando por Correo.enviar, que sí desvía."""
+    if not config.correo_real:
+        return False, "", "correo no configurado"
+    try:
+        if config.email_provider == "brevo":
+            nombre, direccion = _remitente()
+            cuerpo: dict = {"sender": {"name": nombre, "email": direccion}, "to": [{"email": destino}], "subject": asunto, "textContent": texto}
+            if html:
+                cuerpo["htmlContent"] = html
+            if cabeceras:
+                cuerpo["headers"] = cabeceras
+            r = httpx.post("https://api.brevo.com/v3/smtp/email", json=cuerpo, timeout=30, headers={"api-key": config.brevo_api_key, "accept": "application/json"})
+            if r.status_code >= 300:
+                return False, "", r.text[:300]
+            return True, str((r.json() or {}).get("messageId", "")), ""
+        if config.email_provider == "ses":
+            import boto3
+            ses = boto3.client("sesv2", region_name=config.aws_region)
+            body = {"Text": {"Data": texto, "Charset": "UTF-8"}}
+            if html:
+                body["Html"] = {"Data": html, "Charset": "UTF-8"}
+            r = ses.send_email(FromEmailAddress=config.email_from, Destination={"ToAddresses": [destino]},
+                               Content={"Simple": {"Subject": {"Data": asunto, "Charset": "UTF-8"}, "Body": body}})
+            return True, str(r.get("MessageId", "")), ""
+        cuerpo = {"from": config.email_from, "to": [destino], "subject": asunto, "text": texto}
+        if html:
+            cuerpo["html"] = html
+        r = httpx.post("https://api.resend.com/emails", json=cuerpo, timeout=30, headers={"Authorization": f"Bearer {config.resend_api_key}"})
+        if r.status_code >= 300:
+            return False, "", r.text[:300]
+        return True, str(r.json().get("id", "")), ""
+    except Exception as e:  # noqa: BLE001
+        return False, "", str(e)[:300]

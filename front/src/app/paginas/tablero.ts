@@ -40,10 +40,14 @@ interface Burbuja { clave: string; nombre: string; cpl: number; tasa: number; n:
           @if (cuadro().burbujas.length) {
             <svg viewBox="0 0 520 300" class="cuadrantes" role="img" aria-label="Costo por respuesta contra porcentaje de calificados">
               <rect x="56" y="14" width="448" height="236" fill="#F7F9FD" stroke="#E4E8F0"/>
-              <line [attr.x1]="56 + 448 * cuadro().xMed" y1="14" [attr.x2]="56 + 448 * cuadro().xMed" y2="250" stroke="#CBD3E1" stroke-dasharray="4 4"/>
-              <line x1="56" [attr.y1]="250 - 236 * cuadro().yMed" x2="504" [attr.y2]="250 - 236 * cuadro().yMed" stroke="#CBD3E1" stroke-dasharray="4 4"/>
-              <text x="62" y="30" class="cuadrante" style="fill:#0F6E56">Baratos y buenos</text><text x="498" y="30" class="cuadrante" text-anchor="end" style="fill:#2563EB">Caros y buenos</text>
-              <text x="62" y="244" class="cuadrante" style="fill:#B7791F">Baratos y flojos</text><text x="498" y="244" class="cuadrante" text-anchor="end" style="fill:#B91C1C">Caros y flojos</text>
+              @if (cuadro().burbujas.length > 1) {
+                <line [attr.x1]="56 + 448 * cuadro().xMed" y1="14" [attr.x2]="56 + 448 * cuadro().xMed" y2="250" stroke="#CBD3E1" stroke-dasharray="4 4"/>
+                <line x1="56" [attr.y1]="250 - 236 * cuadro().yMed" x2="504" [attr.y2]="250 - 236 * cuadro().yMed" stroke="#CBD3E1" stroke-dasharray="4 4"/>
+                <text x="62" y="30" class="cuadrante" style="fill:#0F6E56">Baratos y buenos</text><text x="498" y="30" class="cuadrante" text-anchor="end" style="fill:#2563EB">Caros y buenos</text>
+                <text x="62" y="244" class="cuadrante" style="fill:#B7791F">Baratos y flojos</text><text x="498" y="244" class="cuadrante" text-anchor="end" style="fill:#B91C1C">Caros y flojos</text>
+              } @else {
+                <text x="280" y="30" class="cuadrante" text-anchor="middle">Con una segunda fuente o canal aparecen las cuatro zonas</text>
+              }
               @for (b of cuadro().burbujas; track b.clave) {
                 <circle [attr.cx]="b.x" [attr.cy]="b.y" [attr.r]="b.r" [attr.fill]="b.color" fill-opacity=".22" [attr.stroke]="b.color" stroke-width="1.5"/>
                 <text [attr.x]="b.x" [attr.y]="b.y + 4" text-anchor="middle" class="numero">{{ b.num }}</text>
@@ -166,8 +170,9 @@ export class TableroPage {
     const xMed = med(xs), yMed = med(ys);
     const burbujas = p.map((q, i) => {
       const barato = xs[i] <= xMed, bueno = ys[i] >= yMed;
-      const zona = barato && bueno ? 'barato y bueno' : bueno ? 'caro y bueno' : barato ? 'barato y flojo' : 'caro y flojo';
-      const color = barato && bueno ? '#0F6E56' : bueno ? '#2563EB' : barato ? '#B7791F' : '#B91C1C';
+      // Las zonas comparan unas combinaciones con otras: con una sola no hay con qué comparar.
+      const zona = p.length < 2 ? 'sin otra con qué comparar todavía' : barato && bueno ? 'barato y bueno' : bueno ? 'caro y bueno' : barato ? 'barato y flojo' : 'caro y flojo';
+      const color = p.length < 2 ? '#2563EB' : barato && bueno ? '#0F6E56' : bueno ? '#2563EB' : barato ? '#B7791F' : '#B91C1C';
       return { ...q, num: i + 1, x: 56 + 448 * xs[i], y: 250 - 236 * ys[i], r: 9 + 20 * Math.sqrt(q.n / maxN), zona, color };
     });
     return { burbujas, xMed, yMed };

@@ -5,6 +5,8 @@ en su configuración. Las plantillas están en los tres idiomas; con agente de t
 """
 from __future__ import annotations
 
+import html as _html
+
 from .models import Lead
 
 IDIOMAS = {"es": "Español", "pt": "Português", "en": "English"}
@@ -187,3 +189,15 @@ def variables_voz(lead: Lead, perfil: dict | None = None) -> dict:
 def whatsapp_texto(lead: Lead, idioma: str = "es", perfil: dict | None = None) -> str:
     p = _perfil(perfil)
     return _t(idioma)["whatsapp"].format(nombre=nombre_bonito(lead.razon_social), remitente=p["remitente"], que_ofrece=p["que_ofrece"])
+
+
+def html_aviso(titulo: str, parrafos: list[str], url_boton: str = "", texto_boton: str = "", pie: str = "") -> str:
+    """Correo del sistema con la marca de Brújula (bienvenida, avisos a la empresa): cabecera azul marino, texto y un botón."""
+    cuerpo = "".join(f'<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#1F2937">{_html.escape(p)}</p>' for p in parrafos)
+    boton = (f'<p style="margin:22px 0 8px"><a href="{_html.escape(url_boton)}" style="display:inline-block;background:#2563EB;color:#ffffff;'
+             f'text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">{_html.escape(texto_boton or "Abrir")}</a></p>') if url_boton else ""
+    pie_html = f'<p style="margin:18px 0 0;font-size:12px;color:#6B7280">{_html.escape(pie)}</p>' if pie else ""
+    return (f'<!doctype html><html><body style="margin:0;background:#F5F7FB;font-family:Arial,Helvetica,sans-serif">'
+            f'<div style="max-width:560px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #E4E8F0">'
+            f'<div style="background:#0C1733;color:#ffffff;padding:18px 24px;font-weight:700;font-size:18px">Brújula</div>'
+            f'<div style="padding:24px"><h1 style="margin:0 0 16px;font-size:20px;color:#0C1733">{_html.escape(titulo)}</h1>{cuerpo}{boton}{pie_html}</div></div></body></html>')
