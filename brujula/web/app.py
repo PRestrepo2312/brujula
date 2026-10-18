@@ -432,12 +432,6 @@ def api_buscar(request: Request, entrada: BusquedaEntrada):
     return r
 
 
-@app.post("/api/asistente/buscar")
-def api_asistente_buscar(request: Request, entrada: AsistenteEntrada):
-    """Buscar conversando: la brújula propone fuentes y ciudades a partir del cliente ideal, la persona corrige y confirma, y se corre la búsqueda."""
-    return asistente.responder_busqueda(empresa_de(request), entrada.mensaje, entrada.estado)
-
-
 @app.get("/api/leads")
 def api_leads(request: Request, estado: str = "", fuente: str = "", q: str = "", limite: int = 200, pagina: int = 1, orden: str = "encaje"):
     """orden: encaje (mejor puntaje contra el cliente ideal), calientes (calificados, luego respondieron, luego contactados) o recientes (últimos agregados)."""
@@ -690,6 +684,13 @@ def api_asistente(request: Request, entrada: AsistenteEntrada):
     """Asistente de inicio por chat: cómo se presenta la empresa, su cliente ideal y el costo por pauta, en cuatro turnos."""
     from .. import asistente
     return asistente.responder(empresa_de(request), entrada.mensaje, entrada.estado)
+
+
+@app.post("/api/asistente/buscar")
+def api_asistente_buscar(request: Request, entrada: AsistenteEntrada):
+    """Buscar conversando: la brújula propone fuentes y ciudades a partir del cliente ideal, la persona corrige y confirma, y se corre la búsqueda."""
+    from .. import asistente
+    return asistente.responder_busqueda(empresa_de(request), entrada.mensaje, entrada.estado)
 
 
 @app.post("/api/nit")
