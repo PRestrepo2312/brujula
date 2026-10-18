@@ -6,6 +6,8 @@ Proyecto del equipo **JFB Devs** para el reto de Dapta en la Hackathon 30X (16 a
 
 > 3 de cada 5 leads que llegan a Dapta preguntan si también les ayudan a conseguirlos. **Brújula es ese botón**: un producto que Dapta puede ofrecerle a sus propios clientes y que pone a trabajar a sus agentes desde el primer contacto.
 
+**Demo en vivo:** https://a72puai2gx6o22p42j7uhkexfm0ihjed.lambda-url.us-east-1.on.aws/app/ · **Video (3 min):** https://youtu.be/Qfscs1ZZn98 · **Cuenta de jurado y modo prueba:** [más abajo](#demo-en-vivo-para-el-jurado).
+
 | | |
 |---|---|
 | **Infraestructura** | 100 % AWS, serverless, como código (CloudFormation): Lambda + Function URL, RDS PostgreSQL, Cognito, Secrets Manager, S3, EventBridge, ECR, CloudWatch (SES y Bedrock soportados). Despliegue con un comando: `deploy/deploy.sh`. |
@@ -34,7 +36,7 @@ La plataforma está desplegada y es **100 % funcional**: busca en registros púb
 - **Lotes**: los lotes 1 a 7 con su reparto por fuente y canal y la explicación de la brújula; **Tablero**: costo por respuesta y por calificado, el cuadrante costo contra calidad y Brújula contra pauta; **En vivo**: lo que va pasando, con los leads por ciudad.
 - Bitácora exportable (`Leads → Exportar CSV`, `/api/exportar/bitacora`) con cada búsqueda, lote, envío, excepción de horario y registro.
 
-Nota honesta: en esta cuenta nueva de AWS, Amazon Bedrock aún no está habilitado (verificación de cuenta pendiente), así que el agente de texto corre hoy en OpenAI (`gpt-4.1-mini`); el código soporta Bedrock, OpenAI, OpenRouter y reglas, y `GET /api/estado` dice cuál está activo. El primer mensaje saliente por WhatsApp espera la aprobación de la plantilla en Meta y se simula; lo entrante sí es real. El video de demostración se entrega en la plataforma de la hackathon; lo que muestra, en orden, está en [`docs/guion-video.md`](docs/guion-video.md).
+Nota honesta: en esta cuenta nueva de AWS, Amazon Bedrock aún no está habilitado (verificación de cuenta pendiente), así que el agente de texto corre hoy en OpenAI (`gpt-4.1-mini`); el código soporta Bedrock, OpenAI, OpenRouter y reglas, y `GET /api/estado` dice cuál está activo. El primer mensaje saliente por WhatsApp espera la aprobación de la plantilla en Meta y se simula; lo entrante sí es real. **Video de demostración (3 min):** https://youtu.be/Qfscs1ZZn98. Lo que muestra, bloque por bloque, está en [`docs/guion-video.md`](docs/guion-video.md).
 
 ---
 
