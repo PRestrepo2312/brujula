@@ -19,3 +19,16 @@ def test_llm_sin_claves_usa_reglas():
     assert l.motor == "reglas" and l.preguntar("sistema", "usuario") == (None, agente.Uso())
     icp, info = agente.interpretar_icp("clínicas odontológicas en Bogotá con más de 10 empleados")
     assert info["motor"] == "reglas" and "salud" in icp.sectores
+
+
+def test_festivos_de_colombia_de_cualquier_anio():
+    """Calendario oficial: 18 festivos, con Ley Emiliani y los que dependen de la Pascua; nunca se contacta en ellos."""
+    from datetime import date, datetime
+    from zoneinfo import ZoneInfo
+    from brujula.compliance import festivos, ventana_permitida
+    f = festivos(2026)
+    assert len(f) == 18
+    assert {date(2026, 4, 2), date(2026, 4, 3), date(2026, 5, 18), date(2026, 6, 8), date(2026, 6, 15), date(2026, 11, 16)} <= f
+    assert date(2027, 10, 18) in festivos(2027)                       # 12 de octubre de 2027 cae martes: pasa al lunes 18
+    ok, razon = ventana_permitida(datetime(2026, 11, 16, 10, 0, tzinfo=ZoneInfo("America/Bogota")))
+    assert not ok and "festivo" in razon

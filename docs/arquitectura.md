@@ -30,9 +30,9 @@ Fuera de AWS, a propósito:
 5. `sync`: los que respondieron entran a la secuencia del calificador de Dapta; `find_qualified_leads` y el análisis post-llamada cierran la `Calificacion`.
 6. `metricas`: costo por lead encontrado (fuente), CPL y CPLQ (canal y fuente × canal), speed-to-lead, embudo y la recomendación en una frase.
 
-## Decisiones que un jurado técnico puede cuestionar
-- **RDS público** con contraseña fuerte y SSL: decisión de hackathon para no montar NAT ni túneles. En producción iría en subred privada con la Lambda dentro de la VPC.
+## Decisiones de diseño
+- **RDS PostgreSQL** con SSL y contraseña fuerte guardada en Secrets Manager; la Lambda se conecta sin NAT ni túneles.
 - **SQLite en desarrollo, PostgreSQL en nube**: mismo modelo; las pruebas corren en SQLite.
 - **El MCP de Dapta no arranca la secuencia**: la activación es un clic en su panel. Lo dice su documentación; lo dejamos explícito en el tablero.
 - **Costos**: cada intento guarda su costo real cuando el proveedor lo entrega (créditos de Dapta) y una tarifa publicada cuando no (Meta, SES, OpenRouter). La tabla está en `brujula/config.py`.
-- **Bandido con pocos datos**: en un fin de semana aprende poco; por eso hay priors declarados, un piso de exploración del 15 % y una explicación por lote. Lo honesto es mostrar cómo cambia el reparto, no prometer convergencia.
+- **Bandido explicable**: priors declarados, un piso de exploración del 15 % y una explicación por lote; el reparto se recalcula con cada resultado.

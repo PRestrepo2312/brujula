@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 from datetime import date, datetime, time
+from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -17,8 +18,39 @@ from .config import config
 from .db import sesion
 from .models import Bitacora, Exclusion, Lead
 
-# Festivos nacionales de Colombia que caen cerca del evento (completar con el calendario oficial para producción).
-FESTIVOS = {date(2026, 10, 12), date(2026, 11, 2), date(2026, 11, 16), date(2026, 12, 8), date(2026, 12, 25), date(2027, 1, 1), date(2027, 1, 11)}
+def _pascua(anio: int) -> date:
+    """Domingo de Pascua (algoritmo anónimo gregoriano)."""
+    a, b, c = anio % 19, anio // 100, anio % 100
+    d, e = b // 4, b % 4
+    g = (8 * b + 13) // 25
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 19 * l) // 433
+    mes = (h + l - 7 * m + 90) // 25
+    return date(anio, mes, (h + l - 7 * m + 33 * mes + 19) % 32)
+
+
+def _lunes_siguiente(d: date) -> date:
+    """Ley Emiliani (Ley 51 de 1983): el festivo que no cae en lunes pasa al lunes siguiente."""
+    return date.fromordinal(d.toordinal() + (7 - d.weekday()) % 7)
+
+
+@lru_cache(maxsize=None)
+def festivos(anio: int) -> frozenset[date]:
+    """Festivos nacionales de Colombia de cualquier año: fijos, trasladables (Ley Emiliani) y los que dependen de la Pascua."""
+    fijos = {date(anio, 1, 1), date(anio, 5, 1), date(anio, 7, 20), date(anio, 8, 7), date(anio, 12, 8), date(anio, 12, 25)}
+    trasladables = {_lunes_siguiente(date(anio, mes, dia)) for mes, dia in ((1, 6), (3, 19), (6, 29), (8, 15), (10, 12), (11, 1), (11, 11))}
+    p = _pascua(anio).toordinal()
+    semana_santa = {date.fromordinal(p - 3), date.fromordinal(p - 2)}            # jueves y viernes santo
+    moviles = {date.fromordinal(p + n) for n in (43, 64, 71)}                     # Ascensión, Corpus Christi, Sagrado Corazón (ya en lunes)
+    return frozenset(fijos | trasladables | semana_santa | moviles)
+
+
+def es_festivo(d: date) -> bool:
+    return d in festivos(d.year)
+
+
 VENTANAS = {0: (time(7, 0), time(19, 0)), 1: (time(7, 0), time(19, 0)), 2: (time(7, 0), time(19, 0)), 3: (time(7, 0), time(19, 0)),
             4: (time(7, 0), time(19, 0)), 5: (time(8, 0), time(15, 0))}   # 6 = domingo: nunca
 
@@ -29,7 +61,7 @@ def ahora_local() -> datetime:
 
 def ventana_permitida(momento: datetime | None = None) -> tuple[bool, str]:
     m = momento or ahora_local()
-    if m.date() in FESTIVOS:
+    if es_festivo(m.date()):
         return False, "festivo: la Ley 2300 no permite contacto"
     v = VENTANAS.get(m.weekday())
     if not v:
@@ -45,7 +77,7 @@ def proxima_ventana(momento: datetime | None = None) -> datetime:
     m = momento or ahora_local()
     for dias in range(0, 8):
         d = m.date() if dias == 0 else date.fromordinal(m.date().toordinal() + dias)
-        if d in FESTIVOS:
+        if es_festivo(d):
             continue
         v = VENTANAS.get(d.weekday())
         if not v:
