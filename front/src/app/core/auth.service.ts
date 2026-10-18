@@ -55,7 +55,12 @@ export class AuthService {
     const datos = await r.json().catch(() => ({}));
     if (!r.ok) {
       const tipo = String(datos.__type || '').split('#').pop() || '';
-      throw new Error(MENSAJES[tipo] || datos.message || `Cognito respondió ${r.status}`);
+      const texto = String(datos.message || '');
+      // Casos que el tipo genérico esconde: la cuenta existe pero nunca fijó su clave (registro a medias o invitación sin usar).
+      if (/cannot be reset in the current state|User is disabled/i.test(texto) && objetivo === 'ForgotPassword') {
+        throw new Error('Esa cuenta todavía no tiene clave propia. Si usted se registró y falló, vuelva a "Crear mi empresa" con el mismo correo y se completa; si lo invitaron, entre con la clave temporal del correo de invitación.');
+      }
+      throw new Error(MENSAJES[tipo] || texto || `Cognito respondió ${r.status}`);
     }
     return datos;
   }
