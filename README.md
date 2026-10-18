@@ -67,6 +67,8 @@ Brújula le da a la pyme que no puede o no quiere pagar pauta una forma medible 
 
 ## 3. Arquitectura en AWS
 
+![Arquitectura de Brújula en AWS: Lambda, RDS, Secrets Manager, Cognito, EventBridge, S3; Dapta, OpenAI, Brevo y datos.gov.co afuera](docs/arquitectura-aws.png)
+
 Toda la plataforma corre en AWS, sin servidores que administrar y con costo cercano a cero en reposo. La infraestructura está declarada como código en `deploy/cloudformation.yml` y `deploy/cognito.yml`, y se levanta con `deploy/deploy.sh`.
 
 ```mermaid
