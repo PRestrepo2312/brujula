@@ -75,7 +75,7 @@ class Config:
     session_secret: str = field(default_factory=lambda: _env("SESSION_SECRET") or os.urandom(32).hex())
     bedrock_model: str = field(default_factory=lambda: _env("BEDROCK_MODEL", "us.anthropic.claude-haiku-5-5"))
     bedrock_habilitado: bool = field(default_factory=lambda: _env("BEDROCK", "1") not in ("0", "false", "no"))
-    # Plan B del agente mientras la cuenta de AWS no tenga Bedrock: OpenAI (modelo barato) o el mismo Amazon Nova por OpenRouter (clave de Jev).
+    # Alternativas al agente de Bedrock, en este orden: OpenAI (modelo barato) o Amazon Nova por OpenRouter (clave de Jev); sin ninguno, reglas.
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
     openai_model: str = field(default_factory=lambda: _env("OPENAI_MODEL", "gpt-4.1-mini"))
     llm_openrouter_model: str = field(default_factory=lambda: _env("LLM_OPENROUTER_MODEL", "amazon/nova-lite-v1"))

@@ -13,8 +13,7 @@ Un servicio web (FastAPI) con conectores a fuentes públicas, una base PostgreSQ
 | **RDS PostgreSQL** (db.t3.micro) | Leads, intentos con su costo, calificaciones, lotes y bitácora. | Lambda no tiene disco persistente; SQLite queda para desarrollo. El código es el mismo (SQLModel, `DATABASE_URL`). |
 | **Secrets Manager** | Clave MCP de Dapta, OpenAI, OpenRouter (Jev), Brevo o Resend, clave del cron y la URL de la base. | Las claves no van en la imagen ni en variables planas; la aplicación los lee al arrancar por SECRET_ARN. |
 | **EventBridge** (API destinations) | Regla 1: `POST /cron/lote` cada hora, L-V 7 a 18 y sábados 8 a 14 (Bogotá). Regla 2: `POST /cron/sincronizar` cada 15 min. | Es el "cada lote" de la brújula sin un proceso vivo. La app vuelve a validar la ventana legal: EventBridge propone, el cumplimiento dispone. |
-| **S3** | Exportaciones (leads, bitácora) y copias de lo descargado de cada fuente. | Reproducibilidad: el jurado puede ver con qué datos se corrió cada lote. |
-| **Amazon SES** | Canal correo con eventos (entrega, apertura, clic, rebote) por SNS a `/webhook/ses`. | Sin dominio propio: remitente con identidad de correo verificada y salida del sandbox. Resend es el segundo proveedor con la misma interfaz (`EMAIL_PROVIDER`). |
+| **Correo: Brevo, Amazon SES o Resend** (`EMAIL_PROVIDER`) | Correos a leads (con botones de respuesta) y correos del sistema (bienvenida, avisos). SES reporta entrega, apertura, clic y rebote por SNS a `/webhook/ses`; Resend por `/webhook/resend`. | Los tres comparten la misma interfaz. En este despliegue va Brevo porque SES está en sandbox en una cuenta nueva (solo destinatarios verificados). |
 | **S3 con URL prefirmadas** | Subidas desde el navegador (listas propias de la pyme, RNE de la CRC) con PUT prefirmado de 15 minutos; exportaciones (leads, intentos, bitácora) con GET prefirmado de 15 minutos. Bucket privado, CORS para PUT/GET, las subidas caducan a los 30 días. | El servidor nunca recibe el archivo ni lo sirve: firma y procesa por clave. Sin bucket, el mismo flujo corre local. |
 | **Front Angular en la misma Lambda** | Angular 20 compilado dentro de la imagen y servido en `/app/` por la aplicación (la raíz redirige allí); consume `/api/*` (OpenAPI en `/api/docs`) con el JWT de Cognito. El tablero HTML del servidor queda en `/tablero`. | Mismo origen para API y front: sin CORS, sin CloudFront y sin dominio (la Function URL ya es HTTPS). `deploy/front.yml` es la variante S3 + CloudFront. API primero: el servidor no depende del front para funcionar. |
 | **CloudWatch** | Logs de Lambda. | Viene solo. |
@@ -22,6 +21,7 @@ Un servicio web (FastAPI) con conectores a fuentes públicas, una base PostgreSQ
 Fuera de AWS, a propósito:
 - **Dapta** (voz, calificación, secuencias) por MCP: es el producto del reto, no se reemplaza.
 - **Jev** (TypeSafe) por OpenRouter: el modelo de decisión del organizador, para puntuar el ICP y clasificar respuestas. Es barato (USD 0,042 por millón de tokens) y rápido; si falla, mandan las reglas.
+- **OpenAI** (`gpt-4.1-mini`) como agente de texto mientras Bedrock no esté habilitado en la cuenta; **Brevo** para el correo.
 - **Fuentes** (datos.gov.co, Overpass, DENUE, BrasilAPI, NYC Open Data): públicas y gratuitas; se citan.
 
 ## Flujo de datos

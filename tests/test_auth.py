@@ -17,8 +17,8 @@ def test_urls_y_cookies_de_cognito():
     u = cg.url_login("https://x.awsapprunner.com/callback", "estado")
     assert u.startswith("https://brujula.auth.us-east-1.amazoncognito.com/login?") and "client_id=cli123" in u and "response_type=code" in u
     assert cg.issuer == "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc"
-    galleta = auth.crear_cookie({"email": "pedro@correo.com", "sub": "1"})
-    assert auth.leer_cookie(galleta)["email"] == "pedro@correo.com"
+    galleta = auth.crear_cookie({"email": "persona@correo.com", "sub": "1"})
+    assert auth.leer_cookie(galleta)["email"] == "persona@correo.com"
     assert auth.leer_cookie("manipulada") is None
     assert auth.leer_estado(auth.firmar_estado("/leads")) == "/leads"
     assert auth.es_publica("/r/abc") and auth.es_publica("/webhook/dapta") and not auth.es_publica("/api/leads") and not auth.es_publica("/tablero")

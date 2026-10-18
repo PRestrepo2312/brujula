@@ -12,7 +12,7 @@ DIST=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION"
 URL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-front --query "Stacks[0].Outputs[?OutputKey=='UrlFront'].OutputValue" --output text)
 echo "Front: $URL"
 
-# La configuración del front (API, Cognito) se escribe en src/assets/config.json antes de construir.
+# La configuración del front (API, Cognito) se escribe en front/public/config.json antes de construir.
 if [ -n "${API_URL:-}" ]; then
   POOL=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text 2>/dev/null || echo "")
   CLIENTE=$(aws cloudformation describe-stacks --profile "$PERFIL" --region "$REGION" --stack-name brujula-cognito --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text 2>/dev/null || echo "")

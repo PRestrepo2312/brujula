@@ -78,29 +78,29 @@ def test_asistente_busqueda_propone_corrige_y_busca(monkeypatch):
 
 
 def test_nombre_comercial_sin_forma_juridica():
-    assert perfil.nombre_comercial("PANEL ROCK COLOMBIA S A S") == "Panel Rock Colombia"
+    assert perfil.nombre_comercial("EJEMPLO CONSTRUCCIONES S A S") == "Ejemplo Construcciones"
     assert perfil.nombre_comercial("CLINICA SONRISAS SAS") == "Clinica Sonrisas"
     assert perfil.nombre_comercial("INVERSIONES DE LA ROSA Y CIA LTDA") == "Inversiones de la Rosa"
-    assert perfil.nombre_comercial("Gi Group Colombia S.A.S.") == "Gi Group Colombia"
+    assert perfil.nombre_comercial("Servicios Andinos S.A.S.") == "Servicios Andinos"
     assert perfil.nombre_comercial("", "ACME") == "Acme"
 
 
 def test_asistente_nit_solo_toma_nombre_del_rues_y_cambia_de_empresa(monkeypatch):
     e = empresas.crear("JFB Devs (demostración)", "x@x.co", "", ICP().__dict__)
-    monkeypatch.setattr(perfil, "buscar_nit", lambda nit: {"nit": nit, "razon_social": "PANEL ROCK COLOMBIA S A S", "sigla": "", "ciudad": "BOGOTA", "sector": "construccion",
+    monkeypatch.setattr(perfil, "buscar_nit", lambda nit: {"nit": nit, "razon_social": "EJEMPLO CONSTRUCCIONES S A S", "sigla": "", "ciudad": "BOGOTA", "sector": "construccion",
                                                            "ciiu": "4111", "matricula": "20020201", "estado": "ACTIVA", "tipo": "SAS", "representante": "X"})
     monkeypatch.setattr(perfil, "leer_sitio", lambda url: {"error": "x"})
     monkeypatch.setattr(perfil, "sugerir", lambda nombre, rues=None, sitio=None, notas="", **kw: (
         {"nombre": nombre, "que_ofrece": "paneles", "a_quien": "constructoras", "diferencial": "", "remitente": f"el equipo de {nombre}", "icp_texto": "Constructoras en Bogotá"}, {"motor": "reglas"}))
-    r1 = asistente.responder(e.id, "830097622-9", {"paso": "empresa"})
-    assert r1["datos"]["nombre"] == "Panel Rock Colombia" and r1["datos"]["nit"] == "8300976229" and "Panel Rock Colombia" in r1["respuesta"]
+    r1 = asistente.responder(e.id, "900123456-7", {"paso": "empresa"})
+    assert r1["datos"]["nombre"] == "Ejemplo Construcciones" and r1["datos"]["nit"] == "9001234567" and "Ejemplo Construcciones" in r1["respuesta"]
     r2 = asistente.responder(e.id, "no tengo", r1)
-    assert r2["paso"] == "propuesta" and "el equipo de Panel Rock Colombia" in r2["respuesta"] and "Así empezaría el correo" in r2["respuesta"]
+    assert r2["paso"] == "propuesta" and "el equipo de Ejemplo Construcciones" in r2["respuesta"] and "Así empezaría el correo" in r2["respuesta"]
     r3 = asistente.responder(e.id, "Otra Marca, NIT 900.111.222", r2)   # otro NIT en plena propuesta: otra empresa
     assert r3["paso"] == "sitio" and r3["datos"]["nombre"] == "Otra Marca" and r3["datos"]["nit"] == "900111222"
     r4 = asistente.responder(e.id, "empezar de nuevo", r3)
     assert r4["paso"] == "empresa" and not r4["datos"]
-    assert asistente._url_en("NIT 900.123.456") == "" and asistente._url_en("panelrockcolombia.com") == "panelrockcolombia.com"
+    assert asistente._url_en("NIT 900.123.456") == "" and asistente._url_en("ejemploconstrucciones.com") == "ejemploconstrucciones.com"
 
 
 def test_asistente_pide_cliente_ideal_si_falta(monkeypatch):

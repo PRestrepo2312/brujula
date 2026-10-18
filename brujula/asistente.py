@@ -133,7 +133,7 @@ def responder(empresa_id: int, mensaje: str, estado: dict | None, usuario: str =
         nombre = re.sub(r"\d[\d.\-]{5,}", "", nombre).strip(" ,.-:;") or datos.get("nombre") or nombre_empresa
         rues = perfil.buscar_nit(nit) if nit else None
         if rues and (not nombre or nombre == nombre_empresa):
-            # No escribió un nombre nuevo: el del registro mercantil, sin la forma jurídica (PANEL ROCK COLOMBIA S A S → Panel Rock Colombia).
+            # No escribió un nombre nuevo: el del registro mercantil, sin la forma jurídica (EJEMPLO CONSTRUCCIONES S A S → Ejemplo Construcciones).
             nombre = perfil.nombre_comercial(rues.get("razon_social", ""), rues.get("sigla", "")) or nombre
         datos = {"nombre": nombre, "nit": nit, "rues": rues}   # empresa nueva: nada de la anterior
         if rues:

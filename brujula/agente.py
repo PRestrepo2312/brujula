@@ -69,7 +69,7 @@ class Bedrock:
 
 
 class OpenRouterLLM:
-    """Plan B mientras la cuenta de AWS no tenga Bedrock: el mismo Amazon Nova (u otro) por OpenRouter, con la clave de Jev."""
+    """Amazon Nova (u otro modelo) por OpenRouter, con la clave de Jev: alternativa cuando la cuenta de AWS no tiene Bedrock habilitado."""
 
     def __init__(self):
         self.modelo = config.llm_openrouter_model
@@ -99,7 +99,7 @@ class OpenRouterLLM:
 
 
 class OpenAILLM:
-    """OpenAI con un modelo barato (OPENAI_MODEL, por defecto gpt-4.1-mini): el agente de texto mientras Bedrock no esté habilitado."""
+    """OpenAI con un modelo barato (OPENAI_MODEL, por defecto gpt-4.1-mini): alternativa al agente de Bedrock con la misma interfaz."""
 
     def __init__(self):
         self.modelo = config.openai_model
@@ -186,11 +186,6 @@ def llm() -> LLM:
     return _llm
 
 
-def bedrock() -> LLM:
-    """Nombre histórico: el agente de texto, sea Bedrock, OpenRouter o reglas."""
-    return llm()
-
-
 def _json_de(texto: str) -> dict | None:
     m = re.search(r"\{.*\}", texto, re.S)
     if not m:
@@ -225,7 +220,7 @@ def interpretar_icp_reglas(texto: str) -> ICP:
 def interpretar_icp(texto: str) -> tuple[ICP, dict]:
     """Devuelve el ICP y cómo se obtuvo ({"motor": "bedrock:…"|"openrouter:…"|"reglas", "costo_usd": ...})."""
     base = interpretar_icp_reglas(texto)
-    b = bedrock()
+    b = llm()
     sistema = ("Conviertes la descripción del cliente ideal de una pyme en criterios estructurados para buscar empresas en registros públicos de Colombia. "
                "Responde SOLO un JSON con: nombre (corto), descripcion (una frase), sectores (lista entre: salud, educacion, turismo, inmobiliario, automotor, servicios, otro), "
                "palabras_sector (lista de palabras clave para buscar en el nombre o actividad), ciudades (lista en MAYÚSCULAS sin tildes, vacía si no dice), "
@@ -253,7 +248,7 @@ def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None, idioma: str
     from .mensajes import TEXTOS, _perfil, cuerpo_correo, nombre_bonito, senal_en_palabras, whatsapp_texto
     idioma = idioma if idioma in TEXTOS else "es"
     p = _perfil(perfil)
-    b = bedrock()
+    b = llm()
     if canal == "whatsapp" or not b.disponible:
         if canal == "correo":
             return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma, perfil=p)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
@@ -277,7 +272,7 @@ def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None, idioma: str
 # ---------------- Explicaciones ----------------
 
 def explicar(contexto: dict, respaldo: str) -> str:
-    b = bedrock()
+    b = llm()
     texto, _ = b.preguntar("Explica en una sola frase, en español sencillo y sin tecnicismos, para el dueño de una pyme, la decisión descrita en el JSON. Sin adjetivos de venta.",
                            json.dumps(contexto, ensure_ascii=False), max_tokens=120)
     return texto.strip() if texto else respaldo

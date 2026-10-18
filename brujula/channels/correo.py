@@ -1,4 +1,5 @@
-"""Canal correo: Resend (gratis hasta 3.000/mes, con apertura y clic por webhook). Sin clave, simula.
+"""Canal correo: Brevo, Amazon SES o Resend según EMAIL_PROVIDER (misma interfaz). Sin clave, simula y lo dice.
+SES y Resend reportan entrega, apertura y clic por webhook.
 
 La respuesta se registra con un clic: "Sí, me interesa", "No, gracias" o "Baja". Cada enlace lleva un token del intento.
 """

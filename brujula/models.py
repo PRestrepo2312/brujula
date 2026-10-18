@@ -107,7 +107,7 @@ class Intento(SQLModel, table=True):
     lead_id: int = Field(index=True, foreign_key="lead.id")
     lote_id: Optional[int] = Field(default=None, index=True, foreign_key="lote.id")
     canal: str = Field(index=True)                     # correo | voz | whatsapp
-    proveedor: str = ""                                # resend | ses | dapta | meta | simulado
+    proveedor: str = ""                                # brevo | ses | resend | dapta | meta | simulado
     estado: str = Field(default="programado", index=True)
     costo_usd: float = 0.0
     duracion_seg: int = 0

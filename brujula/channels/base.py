@@ -7,7 +7,7 @@ from ..models import Intento, Lead
 
 @dataclass
 class Resultado:
-    estado: str                      # enviado | programado | fallido
+    estado: str                      # enviado | programado | omitido | fallido
     costo_usd: float = 0.0
     ref_externa: str | None = None
     proveedor: str = ""

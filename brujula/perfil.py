@@ -25,7 +25,7 @@ MINUSCULAS = {"de", "del", "la", "las", "los", "y", "e", "en", "el", "para", "po
 
 def nombre_comercial(razon_social: str, sigla: str = "") -> str:
     """El nombre con el que una empresa del RUES se presentaría: sin la forma jurídica y en mayúsculas y minúsculas
-    (PANEL ROCK COLOMBIA S A S → Panel Rock Colombia)."""
+    (EJEMPLO CONSTRUCCIONES S A S → Ejemplo Construcciones)."""
     base = (razon_social or "").strip()
     base = FORMAS_JURIDICAS.sub("", base).strip(" ,.-") or base
     if not base:

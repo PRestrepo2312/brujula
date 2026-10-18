@@ -1,6 +1,7 @@
 """OpenStreetMap vía Overpass (licencia ODbL): negocios con teléfono, WhatsApp, correo o web dentro de una ciudad."""
 from __future__ import annotations
 
+import logging
 from typing import Iterator
 
 import httpx
@@ -54,7 +55,7 @@ class ConectorOSM(Conector):
                 ultimo = f"{espejo}: {ex}"
                 continue
         if not datos:
-            print(f"OSM sin datos ({ultimo})", file=__import__('sys').stderr)
+            logging.getLogger(__name__).warning("OSM sin datos (%s)", ultimo)
             return
         for el in datos.get("elements", []):
             t = el.get("tags", {})
