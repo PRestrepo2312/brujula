@@ -62,6 +62,10 @@ def test_asistente_busqueda_propone_corrige_y_busca(monkeypatch):
     assert "SECOP" in r4["respuesta"] and r4["paso"] == "plan"
     r5 = asistente.responder_busqueda(e.id, "mejor hoteles y agencias de viajes en Cartagena", r4)   # otro cliente ideal: fuentes nuevas
     assert "rnt" in r5["datos"]["fuentes"] and "reps" not in r5["datos"]["fuentes"] and r5["datos"]["ciudades"] == ["CARTAGENA"] and "Registro Nacional de Turismo" in r5["respuesta"]
+    r6 = asistente.responder_busqueda(e.id, "todas las fuentes de colombia.", r5)
+    assert r6["datos"]["fuentes"] == ["reps", "men", "rnt", "secop", "rues"] and r6["paso"] == "plan"
+    r7 = asistente.responder_busqueda(e.id, "solo empresas de servicios con más de 1000 empleados", r6)   # sector sin fuente propia: explica por qué solo SECOP
+    assert r7["datos"]["fuentes"] == ["secop"] and "única fuente pública" in r7["respuesta"] and "empleados" in r7["respuesta"]
 
 
 def test_nombre_comercial_sin_forma_juridica():

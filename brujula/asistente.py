@@ -25,6 +25,7 @@ REINICIA = re.compile(r"\b(empezar\s+de\s+nuevo|volver\s+a\s+empezar|reinici\w*|
 SI_BUSCA = re.compile(r"^\W*(s[ií]|busca\w*|dale|claro|hazlo|de\s+una|ok|okey|listo|va|adelante|empieza|arranca|as[ií])\b", re.I)
 
 FUENTE_POR_SECTOR = {"salud": "reps", "educacion": "men", "turismo": "rnt"}
+TODAS_CO = ("reps", "men", "rnt", "secop", "rues")   # lo que entra con "todas las fuentes" (OSM queda fuera: pide el tipo de negocio en inglés)
 ALIAS_FUENTE = {"reps": "reps", "men": "men", "rnt": "rnt", "secop": "secop", "rues": "rues", "osm": "osm", "openstreetmap": "osm",
                 "denue": "denue", "cnpj": "cnpj", "nyc": "nyc"}
 RELLENO = {"en", "y", "e", "o", "tambien", "mejor", "solo", "la", "las", "el", "los", "de", "del", "ciudad", "ciudades", "agrega", "agregue", "agregame",
@@ -261,8 +262,17 @@ def _nombre_fuente(clave: str) -> str:
 def _texto_plan(icp, fuentes: list[str], ciudades: list[str], parametros: dict) -> str:
     donde = " y ".join(c.title() for c in ciudades) if ciudades else "todo el país"
     partes = [_nombre_fuente(f) + (f" (actividad: {parametros[f]['sector']})" if (parametros.get(f) or {}).get("sector") else "") for f in fuentes]
-    return (f"Su cliente ideal: {icp.descripcion}\n\nLe propongo buscar en {', '.join(partes)}, en {donde}.\n\n"
-            "¿Busco así? Diga 'sí', o cámbieme la ciudad, el sector o la fuente. Escriba 'fuentes' para ver todas las que hay.")
+    notas = []
+    if fuentes == ["secop"]:
+        notas.append("Para ese sector la única fuente pública con teléfono y correo es SECOP (empresas registradas como proveedoras del Estado): "
+                     "REPS, MEN y RNT solo cubren salud, educación y turismo, y el RUES trae empresas recién matriculadas pero sin contacto.")
+    if icp.empleados_min or icp.empleados_max:
+        notas.append("El número de empleados solo lo publica el RNT; en las demás fuentes el encaje se apoya en sector, ciudad y canal de contacto.")
+    texto = f"Su cliente ideal: {icp.descripcion}\n\nLe propongo buscar en {', '.join(partes)}, en {donde}."
+    if notas:
+        texto += "\n\n" + " ".join(notas)
+    return texto + ("\n\n¿Busco así? Diga 'sí', o cámbieme la ciudad, el sector o la fuente. "
+                    "'Todas las fuentes' usa REPS, MEN, RNT, SECOP y RUES a la vez; 'fuentes' las describe una por una.")
 
 
 def _texto_fuentes() -> str:
@@ -320,6 +330,12 @@ def responder_busqueda(empresa_id: int, mensaje: str, estado: dict | None) -> di
         return {"respuesta": _texto_fuentes(), "paso": "plan", "datos": datos}
     claves = [ALIAS_FUENTE[w] for w in re.findall(r"[a-z]+", _sin_tildes(m.lower())) if w in ALIAS_FUENTE and ALIAS_FUENTE[w] in CONECTORES]
     ciudades = _ciudades_en(m)
+    if re.search(r"\btodas?\b", m, re.I) and (re.search(r"\bfuentes?\b|\bcolombia\b|\bregistros?\b", m, re.I) or len(m) <= 12) and len(m) <= 80:
+        datos["fuentes"] = [k for k in TODAS_CO if k in CONECTORES]   # "todas las fuentes (de Colombia)" / "todas"
+        if ciudades:
+            icp.ciudades = ciudades
+            empresas.actualizar(empresa_id, icp=icp.__dict__)
+        return plan("Entendido, todas las fuentes de Colombia (el RUES no trae contacto, sirve para ver quién se matriculó hace poco). ")
     if claves:
         datos["fuentes"] = list(dict.fromkeys(claves))
         if ciudades:
