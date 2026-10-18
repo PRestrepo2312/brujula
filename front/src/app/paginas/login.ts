@@ -2,12 +2,13 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
+import { ClaveRequisitos, claveValida } from './clave-requisitos';
 
 type Modo = 'clave' | 'nueva' | 'olvide' | 'codigo';
 
 @Component({
   selector: 'pagina-login',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, ClaveRequisitos],
   template: `
     <div class="auth">
       <section class="auth-brand">
@@ -40,8 +41,8 @@ type Modo = 'clave' | 'nueva' | 'olvide' | 'codigo';
               @case ('nueva') {
                 <h2>Clave nueva</h2><p class="lead">Es su primer ingreso: elija una clave de 12 caracteres o más, con mayúscula, minúscula y número.</p>
                 <div class="field"><label>Clave nueva</label><input type="password" [(ngModel)]="nueva" autocomplete="new-password"></div>
-                <div class="field"><label>Repítala</label><input type="password" [(ngModel)]="nueva2" autocomplete="new-password" (keyup.enter)="fijarNueva()"></div>
-                <button class="btn btn-primary btn-lg btn-block" (click)="fijarNueva()" [disabled]="ocupado() || nueva.length < 12 || nueva !== nueva2">Guardar y entrar</button>
+                <div class="field"><label>Repítala</label><input type="password" [(ngModel)]="nueva2" autocomplete="new-password" (keyup.enter)="fijarNueva()"><clave-requisitos [clave]="nueva" [repetida]="nueva2"/></div>
+                <button class="btn btn-primary btn-lg btn-block" (click)="fijarNueva()" [disabled]="ocupado() || !claveValida(nueva) || nueva !== nueva2">Guardar y entrar</button>
               }
               @case ('olvide') {
                 <h2>Recuperar la clave</h2><p class="lead">Le enviamos un código al correo de su cuenta.</p>
@@ -53,8 +54,8 @@ type Modo = 'clave' | 'nueva' | 'olvide' | 'codigo';
                 <h2>Código y clave nueva</h2><p class="lead">Escriba el código que llegó al correo y elija la clave nueva.</p>
                 <div class="field"><label>Código</label><input [(ngModel)]="codigo" inputmode="numeric" autocomplete="one-time-code"></div>
                 <div class="field"><label>Clave nueva</label><input type="password" [(ngModel)]="nueva" autocomplete="new-password"></div>
-                <div class="field"><label>Repítala</label><input type="password" [(ngModel)]="nueva2" autocomplete="new-password" (keyup.enter)="confirmarCodigo()"></div>
-                <button class="btn btn-primary btn-lg btn-block" (click)="confirmarCodigo()" [disabled]="ocupado() || !codigo || nueva.length < 12 || nueva !== nueva2">Cambiar clave y entrar</button>
+                <div class="field"><label>Repítala</label><input type="password" [(ngModel)]="nueva2" autocomplete="new-password" (keyup.enter)="confirmarCodigo()"><clave-requisitos [clave]="nueva" [repetida]="nueva2"/></div>
+                <button class="btn btn-primary btn-lg btn-block" (click)="confirmarCodigo()" [disabled]="ocupado() || !codigo || !claveValida(nueva) || nueva !== nueva2">Cambiar clave y entrar</button>
                 <div class="auth-links"><a (click)="cambiar('clave')">Volver</a></div>
               }
             }
@@ -72,6 +73,7 @@ export class LoginPage {
   siguiente = inject(ActivatedRoute).snapshot.queryParamMap.get('next') || '/';
   modo = signal<Modo>('clave');
   email = ''; clave = ''; nueva = ''; nueva2 = ''; codigo = '';
+  claveValida = claveValida;
   private session = '';
   ocupado = signal(false); error = signal(''); info = signal('');
 

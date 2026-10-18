@@ -1,0 +1,16 @@
+{
+  "name": "Brújula",
+  "short_name": "Brújula",
+  "description": "Más leads, menor costo: encuentra empresas en registros públicos, las contacta y mide el costo por cliente calificado.",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#F5F7FB",
+  "theme_color": "#0C1733",
+  "lang": "es",
+  "icons": [
+    { "src": "icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icono-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

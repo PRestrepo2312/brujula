@@ -638,26 +638,44 @@ def api_registro(entrada: RegistroEntrada):
         return JSONResponse({"error": problema}, status_code=400)
     import boto3
     c = boto3.client("cognito-idp", region_name=config.aws_region)
+    a_medias, e = False, None
     try:
-        c.admin_get_user(UserPoolId=cognito.pool_id, Username=email)
-        return JSONResponse({"error": "ese correo ya tiene cuenta: entre con su clave o use 'Olvidé mi clave'"}, status_code=409)
+        u = c.admin_get_user(UserPoolId=cognito.pool_id, Username=email)
+        # Un registro que quedó a medias (usuario creado, clave sin fijar) se completa; cualquier otra cuenta existente no se toca.
+        attrs = {a["Name"]: a["Value"] for a in u.get("UserAttributes", [])}
+        emp_prev = empresas.obtener(int(attrs["custom:empresa_id"])) if (attrs.get("custom:empresa_id") or "").isdigit() else None
+        if u.get("UserStatus") == "FORCE_CHANGE_PASSWORD" and emp_prev and (emp_prev.correo_notificaciones or "").lower() == email:
+            a_medias, e = True, emp_prev
+        else:
+            return JSONResponse({"error": "ese correo ya tiene cuenta: entre con su clave o use 'Olvidé mi clave'"}, status_code=409)
     except c.exceptions.UserNotFoundException:
         pass
     texto_icp = entrada.icp_texto.strip()
     icp, _info = agente.interpretar_icp(texto_icp) if texto_icp else (ICP(), {"motor": "defecto"})
-    e = empresas.crear(nombre, email, texto_icp, icp.__dict__)
+    if e is None:
+        e = empresas.crear(nombre, email, texto_icp, icp.__dict__)
     rues = entrada.rues or {}
     if entrada.nit.strip() or rues:
         perfil_inicial = {"nombre": nombre, "nit": (entrada.nit or rues.get("nit") or "").strip(), "ciudad": rues.get("ciudad", ""), "sector": rues.get("sector", ""),
                           "razon_social": rues.get("razon_social", ""), "ciiu": rues.get("ciiu", "")}
         empresas.actualizar(e.id, config={**empresas.config_de(e.id), "perfil": perfil_inicial})
     try:
-        c.admin_create_user(UserPoolId=cognito.pool_id, Username=email, MessageAction="SUPPRESS",
-                            UserAttributes=[{"Name": "email", "Value": email}, {"Name": "email_verified", "Value": "true"},
-                                            {"Name": "custom:empresa_id", "Value": str(e.id)}, {"Name": "custom:rol", "Value": "admin"}])
-        c.admin_set_user_password(UserPoolId=cognito.pool_id, Username=email, Password=entrada.clave, Permanent=True)
+        if not a_medias:
+            c.admin_create_user(UserPoolId=cognito.pool_id, Username=email, MessageAction="SUPPRESS",
+                                UserAttributes=[{"Name": "email", "Value": email}, {"Name": "email_verified", "Value": "true"},
+                                                {"Name": "custom:empresa_id", "Value": str(e.id)}, {"Name": "custom:rol", "Value": "admin"}])
+        try:
+            c.admin_set_user_password(UserPoolId=cognito.pool_id, Username=email, Password=entrada.clave, Permanent=True)
+        except Exception:
+            if not a_medias:   # no dejar un usuario sin clave: se borra para que pueda intentar de nuevo
+                try:
+                    c.admin_delete_user(UserPoolId=cognito.pool_id, Username=email)
+                except Exception:  # noqa: BLE001
+                    pass
+            raise
     except Exception as ex:  # noqa: BLE001
-        return JSONResponse({"error": f"Cognito: {str(ex)[:200]}"}, status_code=400)
+        anotar("registro", f"Registro de {email} falló en Cognito: {str(ex)[:200]}", e.id, email=email)
+        return JSONResponse({"error": "No se pudo crear el usuario. Intente de nuevo en un momento; si sigue fallando, escríbanos."}, status_code=400)
     anotar("registro", f"Empresa {e.id} '{nombre}' registrada por {email} (admin)", e.id, email=email)
     # Bienvenida por el proveedor de correo (Brevo): al destinatario real, sin desvío; si falla, el registro igual queda hecho.
     try:

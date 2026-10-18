@@ -180,7 +180,7 @@ Resources:
               - {Effect: Allow, Action: [ses:SendEmail, ses:SendRawEmail], Resource: "*"}
               - {Effect: Allow, Action: [s3:PutObject, s3:GetObject, s3:ListBucket], Resource: [!GetAtt Exportaciones.Arn, !Sub "${Exportaciones.Arn}/*"]}
               - {Effect: Allow, Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream], Resource: "*"}
-              - {Effect: Allow, Action: [cognito-idp:AdminCreateUser, cognito-idp:AdminGetUser, cognito-idp:AdminUpdateUserAttributes], Resource: "*"}
+              - {Effect: Allow, Action: [cognito-idp:AdminCreateUser, cognito-idp:AdminGetUser, cognito-idp:AdminUpdateUserAttributes, cognito-idp:AdminSetUserPassword, cognito-idp:AdminDeleteUser], Resource: "*"}
   Funcion:
     Type: AWS::Lambda::Function
     Properties:

@@ -3,10 +3,11 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
+import { ClaveRequisitos, claveValida } from './clave-requisitos';
 
 @Component({
   selector: 'pagina-registro',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, ClaveRequisitos],
   template: `
     <div class="auth">
       <section class="auth-brand">
@@ -27,9 +28,9 @@ import { AuthService } from '../core/auth.service';
           </div>
           <div class="field"><label>Nombre de la empresa</label><input [(ngModel)]="empresa" placeholder="Clínica Sonrisas SAS" (keyup.enter)="crear()"></div>
           <div class="field"><label>Su correo</label><input type="email" [(ngModel)]="email" autocomplete="username" (keyup.enter)="crear()"></div>
-          <div class="field"><label>Clave</label><input type="password" [(ngModel)]="clave" autocomplete="new-password"><span class="hint">12 caracteres o más, con mayúscula, minúscula y número.</span></div>
-          <div class="field"><label>Repita la clave</label><input type="password" [(ngModel)]="clave2" autocomplete="new-password" (keyup.enter)="crear()"></div>
-          <button class="btn btn-primary btn-lg btn-block" (click)="crear()" [disabled]="ocupado() || !empresa.trim() || !email || clave.length < 12 || clave !== clave2">{{ ocupado() ? 'Creando…' : 'Crear empresa y entrar' }}</button>
+          <div class="field"><label>Clave</label><input type="password" [(ngModel)]="clave" autocomplete="new-password"></div>
+          <div class="field"><label>Repita la clave</label><input type="password" [(ngModel)]="clave2" autocomplete="new-password" (keyup.enter)="crear()"><clave-requisitos [clave]="clave" [repetida]="clave2"/></div>
+          <button class="btn btn-primary btn-lg btn-block" (click)="crear()" [disabled]="ocupado() || !empresa.trim() || !email || !claveValida(clave) || clave !== clave2">{{ ocupado() ? 'Creando…' : 'Crear empresa y entrar' }}</button>
           @if (error()) {<div class="banner banner-danger">{{ error() }}</div>}
           <div class="auth-links"><a routerLink="/login">Ya tengo cuenta</a></div>
         </div>
@@ -41,6 +42,7 @@ export class RegistroPage {
   private auth = inject(AuthService);
   private router = inject(Router);
   empresa = ''; email = ''; clave = ''; clave2 = ''; nit = '';
+  claveValida = claveValida;
   rues = signal<any>(null);
   nitError = signal('');
   buscando = signal(false);
