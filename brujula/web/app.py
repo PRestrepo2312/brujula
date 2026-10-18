@@ -415,6 +415,47 @@ def api_estado(request: Request):
             "modo_prueba": {"activo": config.modo_prueba, "telefono": config.telefono_prueba, "correos": config.correos_prueba}}
 
 
+@app.get("/api/en-vivo")
+def api_en_vivo(request: Request, limite: int = 40):
+    """La pantalla en vivo: contadores de las últimas 24 horas, lo último que pasó (búsquedas, lotes, envíos, respuestas,
+    calificaciones) y cuántos leads hay por ciudad. El front la refresca cada pocos segundos."""
+    from datetime import datetime, timedelta
+    emp_id = empresa_de(request)
+    desde = datetime.utcnow() - timedelta(hours=24)
+    with sesion() as s:
+        vivos = (Lead.empresa_id == emp_id, Lead.duplicado_de.is_(None))
+        total = s.exec(select(func.count()).select_from(Lead).where(*vivos)).one()
+        encajan = s.exec(select(func.count()).select_from(Lead).where(*vivos, Lead.icp_estado == "pasa")).one()
+        nuevos = s.exec(select(func.count()).select_from(Lead).where(*vivos, Lead.creado_en >= desde)).one()
+        contactados = s.exec(select(func.count()).select_from(Intento).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde,
+                                                                            Intento.estado.notin_(("omitido", "cancelado", "programado", "fallido")))).one()
+        respondieron = s.exec(select(func.count()).select_from(Intento).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde, Intento.estado == "contestado")).one()
+        calificados = s.exec(select(func.count()).select_from(Calificacion).where(Calificacion.empresa_id == emp_id, Calificacion.resultado == "calificado")).one()
+        costo = s.exec(select(func.coalesce(func.sum(Intento.costo_usd), 0.0)).where(Intento.empresa_id == emp_id, Intento.enviado_en >= desde)).one()
+        por_ciudad = s.exec(select(Lead.ciudad, func.count()).where(*vivos).group_by(Lead.ciudad).order_by(func.count().desc())).all()
+        por_fuente = s.exec(select(Lead.fuente_clave, func.count()).where(*vivos, Lead.creado_en >= desde).group_by(Lead.fuente_clave)).all()
+        eventos = []
+        for b in s.exec(select(Bitacora).where(Bitacora.empresa_id == emp_id).order_by(Bitacora.id.desc()).limit(limite)).all():
+            eventos.append({"cuando": b.creado_en.isoformat(), "tipo": b.tipo, "texto": b.mensaje})
+        for it, l in s.exec(select(Intento, Lead).join(Lead, Lead.id == Intento.lead_id).where(Intento.empresa_id == emp_id).order_by(Intento.id.desc()).limit(limite)).all():
+            cuando = it.enviado_en or it.creado_en
+            texto = f"{metrics.NOMBRE_CANAL.get(it.canal, it.canal).capitalize()} a {l.razon_social.title()}: {it.estado}"
+            if it.clasificacion:
+                texto += f", {it.clasificacion}"
+            if it.costo_usd:
+                texto += f" · USD {it.costo_usd:.2f}"
+            eventos.append({"cuando": cuando.isoformat(), "tipo": f"{it.canal}:{it.estado}", "texto": texto, "lead_id": l.id})
+        for c, l in s.exec(select(Calificacion, Lead).join(Lead, Lead.id == Calificacion.lead_id).where(Calificacion.empresa_id == emp_id).order_by(Calificacion.id.desc()).limit(20)).all():
+            cuando = getattr(c, "creado_en", None) or datetime.utcnow()
+            eventos.append({"cuando": cuando.isoformat(), "tipo": f"calificacion:{c.resultado}", "texto": f"Dapta calificó a {l.razon_social.title()}: {c.resultado}", "lead_id": l.id})
+    eventos.sort(key=lambda e: e["cuando"], reverse=True)
+    return {"ahora": datetime.utcnow().isoformat(), "modo_prueba": config.modo_prueba,
+            "contadores": {"leads": total, "encajan": encajan, "nuevos_24h": nuevos, "contactados_24h": contactados, "respondieron_24h": respondieron,
+                           "calificados": calificados, "costo_24h_usd": round(float(costo or 0), 4)},
+            "ciudades": [{"ciudad": (c or ""), "n": n} for c, n in por_ciudad],
+            "fuentes_24h": {(f or "?"): n for f, n in por_fuente}, "eventos": eventos[:limite]}
+
+
 @app.get("/api/metricas")
 def api_metricas(request: Request):
     return metrics.calcular(empresa_de(request))

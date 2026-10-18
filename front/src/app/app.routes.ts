@@ -7,6 +7,7 @@ export const routes: Routes = [
   { path: 'registro', loadComponent: () => import('./paginas/registro').then((m) => m.RegistroPage) },
   { path: '', canActivate: [authGuard], loadComponent: () => import('./paginas/tablero').then((m) => m.TableroPage) },
   { path: 'inicio', canActivate: [authGuard], loadComponent: () => import('./paginas/inicio').then((m) => m.InicioPage) },
+  { path: 'en-vivo', canActivate: [authGuard], loadComponent: () => import('./paginas/en-vivo').then((m) => m.EnVivoPage) },
   { path: 'buscar', canActivate: [authGuard], loadComponent: () => import('./paginas/buscar').then((m) => m.BuscarPage) },
   { path: 'buscar/manual', canActivate: [authGuard], loadComponent: () => import('./paginas/buscar-manual').then((m) => m.BuscarManualPage) },
   { path: 'leads', canActivate: [authGuard], loadComponent: () => import('./paginas/leads').then((m) => m.LeadsPage) },

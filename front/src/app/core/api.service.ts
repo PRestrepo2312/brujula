@@ -26,6 +26,7 @@ export class ApiService {
   estado(): Observable<any> { return this.http.get(`${this.base}/api/estado`); }
   yo(): Observable<any> { return this.http.get(`${this.base}/api/yo`); }
   metricas(): Observable<Metricas> { return this.http.get<Metricas>(`${this.base}/api/metricas`); }
+  enVivo(): Observable<any> { return this.http.get(`${this.base}/api/en-vivo`); }
   fuentes(): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/fuentes`); }
   buscar(cuerpo: { fuentes: string[]; ciudad: string; sector: string; limite: number; parametros?: Record<string, { ciudad?: string; sector?: string }> }): Observable<any> { return this.http.post(`${this.base}/api/buscar`, cuerpo); }
   leads(filtros: { estado?: string; fuente?: string; q?: string; limite?: number; pagina?: number; orden?: string } = {}): Observable<Lead[]> {
