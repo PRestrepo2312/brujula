@@ -1,5 +1,7 @@
 # Arquitectura
 
+Diagrama con los íconos oficiales de AWS: [`arquitectura-aws.png`](arquitectura-aws.png). Este documento explica cada decisión; el resumen está en el README principal (sección 3).
+
 ## En una frase
 Un servicio web (FastAPI) con conectores a fuentes públicas, una base PostgreSQL, el MCP de Dapta como motor de voz y calificación, y EventBridge marcando el ciclo "encontrar, contactar, medir, reasignar" cada hora dentro de la ventana legal.
 
@@ -9,7 +11,7 @@ Un servicio web (FastAPI) con conectores a fuentes públicas, una base PostgreSQ
 |---|---|---|
 | **Lambda con imagen de contenedor y Function URL** | El tablero, la API, los webhooks de Dapta y de correo, y los endpoints de cron. HTTPS propio sin dominio. | La misma imagen de ECR corre en Lambda con el Lambda Web Adapter; sin servidores ni balanceadores y con costo cero en reposo. App Runner dejó de aceptar cuentas nuevas en abril de 2026. Dapta necesita una URL pública para el webhook post-llamada; los correos necesitan enlaces públicos para "me interesa / no / baja". |
 | **RDS PostgreSQL** (db.t3.micro) | Leads, intentos con su costo, calificaciones, lotes y bitácora. | Lambda no tiene disco persistente; SQLite queda para desarrollo. El código es el mismo (SQLModel, `DATABASE_URL`). |
-| **Secrets Manager** | Clave MCP de Dapta, OpenRouter (Jev), Resend, clave del cron y la URL de la base. | Las claves no van en la imagen ni en variables planas; la aplicación los lee al arrancar por SECRET_ARN. |
+| **Secrets Manager** | Clave MCP de Dapta, OpenAI, OpenRouter (Jev), Brevo o Resend, clave del cron y la URL de la base. | Las claves no van en la imagen ni en variables planas; la aplicación los lee al arrancar por SECRET_ARN. |
 | **EventBridge** (API destinations) | Regla 1: `POST /cron/lote` cada hora, L-V 7 a 18 y sábados 8 a 14 (Bogotá). Regla 2: `POST /cron/sincronizar` cada 15 min. | Es el "cada lote" de la brújula sin un proceso vivo. La app vuelve a validar la ventana legal: EventBridge propone, el cumplimiento dispone. |
 | **S3** | Exportaciones (leads, bitácora) y copias de lo descargado de cada fuente. | Reproducibilidad: el jurado puede ver con qué datos se corrió cada lote. |
 | **Amazon SES** | Canal correo con eventos (entrega, apertura, clic, rebote) por SNS a `/webhook/ses`. | Sin dominio propio: remitente con identidad de correo verificada y salida del sandbox. Resend es el segundo proveedor con la misma interfaz (`EMAIL_PROVIDER`). |

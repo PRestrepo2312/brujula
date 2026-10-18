@@ -8,10 +8,73 @@ Proyecto del equipo **JFB Devs** para el reto de Dapta en la Hackathon 30X (16 a
 
 | | |
 |---|---|
-| **Infraestructura** | 100 % AWS, serverless, como código (CloudFormation): Lambda + Function URL, RDS PostgreSQL, Cognito, Secrets Manager, S3, EventBridge, SES, Bedrock, ECR, CloudWatch. Despliegue con un comando. |
+| **Infraestructura** | 100 % AWS, serverless, como código (CloudFormation): Lambda + Function URL, RDS PostgreSQL, Cognito, Secrets Manager, S3, EventBridge, ECR, CloudWatch (SES y Bedrock soportados). Despliegue con un comando: `deploy/deploy.sh`. |
 | **Integración con Dapta** | Por el MCP oficial (`https://mcp.dapta.ai/mcp`): crea el agente calificador y la secuencia, adjunta contactos, lee llamadas y conversaciones, recibe el webhook post-llamada y consulta el saldo de créditos. |
 | **Producto** | Multiempresa con roles (Cognito), front Angular 20, API REST documentada (OpenAPI), cumplimiento de la Ley 2300 y modo prueba para demos reales sin tocar a terceros. |
-| **Inteligencia** | Agente de texto (Bedrock, con OpenAI y OpenRouter de respaldo) + Jev (TypeSafe) para el ICP y las respuestas, asistentes conversacionales para arrancar y para buscar, y un bandido multibrazo (Thompson sampling) que reparte cada lote por fuente × canal. Con reglas de respaldo: si un modelo falla, nada se cae. |
+| **Inteligencia** | Agente de texto (Bedrock, OpenAI u OpenRouter; hoy OpenAI) + Jev (TypeSafe) para el ICP y las respuestas, asistentes conversacionales para arrancar y para buscar, y un bandido multibrazo (Thompson sampling) que reparte cada lote por fuente × canal. Con reglas de respaldo: si un modelo falla, nada se cae. |
+
+---
+
+## Demo en vivo (para el jurado)
+
+**URL:** https://a72puai2gx6o22p42j7uhkexfm0ihjed.lambda-url.us-east-1.on.aws/app/
+
+La plataforma está desplegada y es **100 % funcional**: busca en registros públicos reales, contacta por correo y por el agente de voz de Dapta, mide costos reales y califica. Dos formas de entrar:
+
+| Opción | Cómo | Qué se ve |
+|---|---|---|
+| **Registrarse** (la ideal) | *Crear mi empresa* en la pantalla de entrada: nombre de la empresa (o el NIT, y Brújula trae el nombre del RUES), correo y clave. Entra de inmediato y recibe un correo de bienvenida. | Su propio espacio vacío: el asistente de inicio le arma el perfil y el cliente ideal conversando, y Buscar le propone fuentes y trae empresas reales en segundos. |
+| **Cuenta de jurado** | Usuario `jurado@jfbdevs.test` · clave `Brujula-Jurado-2026` (rol *usuario* de la empresa de demostración). | Todo lo que pasó durante el evento: más de 1.500 empresas encontradas, los lotes enviados, los correos reales, la llamada real del agente de Dapta y el lead que entró por WhatsApp. |
+
+**Modo prueba (así está desplegada):** para no contactar a terceros durante la hackathon, todo el ciclo corre con los leads reales (búsqueda, cliente ideal, pitch con el nombre y las señales de cada empresa, lote, métricas), pero **la llamada del agente de Dapta se desvía a un único número de prueba del equipo y los correos a tres buzones del equipo**. Cada intento guarda el destino original y el desviado, y el encabezado de la aplicación lo muestra. Un lote nuevo, por tanto, sí produce una llamada real (al número de prueba) y gasta créditos de Dapta: eso es lo que mide el costo. Para contactar leads de verdad se despliega con `MODO_PRUEBA=0`.
+
+**Evidencia que puede revisar en la cuenta de jurado:**
+- **Leads → Colegio George Williams** (fuente MEN): llamada real del agente de voz de Dapta el 17 de octubre, 184 segundos, USD 1,33, resultado *interesado* y *calificado*, con el resumen, las variables extraídas, la transcripción y la grabación.
+- **Leads → WHATSAPP ENTRANTE 772233**: conversación real que entró por la línea de WhatsApp Business conectada al agente de texto de Dapta.
+- **Lotes**: los lotes 1 a 7 con su reparto por fuente y canal y la explicación de la brújula; **Tablero**: costo por respuesta y por calificado, el cuadrante costo contra calidad y Brújula contra pauta; **En vivo**: lo que va pasando, con los leads por ciudad.
+- Bitácora exportable (`Leads → Exportar CSV`, `/api/exportar/bitacora`) con cada búsqueda, lote, envío, excepción de horario y registro.
+
+Nota honesta: en esta cuenta nueva de AWS, Amazon Bedrock aún no está habilitado (verificación de cuenta pendiente), así que el agente de texto corre hoy en OpenAI (`gpt-4.1-mini`); el código soporta Bedrock, OpenAI, OpenRouter y reglas, y `GET /api/estado` dice cuál está activo. El primer mensaje saliente por WhatsApp espera la aprobación de la plantilla en Meta y se simula; lo entrante sí es real. El video de demostración se entrega en la plataforma de la hackathon; lo que muestra, en orden, está en [`docs/guion-video.md`](docs/guion-video.md).
+
+---
+
+## Estructura del repositorio
+
+```
+brujula/                      Backend: Python 3.12, FastAPI, SQLModel
+  web/app.py                  API REST (/api/*, OpenAPI en /api/docs), webhooks (Dapta, SES, Resend), cron y el front servido en /app/
+  models.py · db.py           Modelo de datos: empresas, leads, intentos (con costo), lotes, calificaciones, bitácora, notificaciones
+  sources/                    Conectores: co_reps, co_men, co_rnt, co_secop, co_rues (datos_gov), osm, otros_paises (DENUE, CNPJ, NYC), csv_propio, discover
+  normalize.py · dedupe.py    Teléfonos a E.164, correos, dominios, NIT; deduplicación NIT > dominio > teléfono > nombre parecido
+  ingest.py                   Corre un conector, guarda los leads de una empresa, registra el costo de encontrar y deduplica
+  icp.py · agente.py          Cliente ideal: reglas + Jev; agente de texto (Bedrock / OpenAI / OpenRouter / reglas)
+  asistente.py                Los dos chats: inicio (perfil + cliente ideal) y buscar (fuentes, ciudades, lotes)
+  perfil.py · mensajes.py     RUES por NIT y lectura de la página web; plantillas es/pt/en y correo HTML
+  bandit.py                   Thompson sampling por fuente × canal: dónde buscar el siguiente lote
+  pipeline.py                 Lotes, envío por canal, sincronización con Dapta (llamadas y conversaciones)
+  channels/                   correo.py (Brevo / SES / Resend), voz_dapta.py, whatsapp.py
+  dapta_mcp.py · dapta_setup.py   Cliente del MCP de Dapta (preview -> commit); creación del agente de voz y la secuencia
+  compliance.py               Ley 2300 (ventana, festivos de Colombia), RNE, overrides con usuario y motivo
+  metrics.py                  Costo por lead encontrado, CPL, CPLQ, cuadrante costo contra calidad, Brújula contra pauta
+  empresas.py · auth.py       Multiempresa, perfil comercial; Cognito (JWT, roles)
+  storage.py · notificaciones.py   S3 con URL prefirmadas (o disco local); avisos en la app y por correo
+  testset.py · config.py      Set de 50 empresas con duplicados trampa; variables de entorno y tarifas
+front/                        Angular 20 (standalone + signals): tablero, en vivo, inicio y buscar (chats), leads, lotes, notificaciones, configuración, login, registro
+deploy/                       cloudformation.yml (Lambda, RDS, Secrets, S3, EventBridge), cognito.yml, deploy.sh, iam-politica-despliegue.json
+tests/                        41 pruebas pytest en 14 archivos
+docs/                         arquitectura-aws.png, arquitectura.md, PDFs, capturas/ y lo que muestra el video
+Dockerfile                    Dos etapas: Node compila el front, Python sirve API + front con Lambda Web Adapter
+cli.py                        fuentes, fetch, dedupe, score, descubrir, stats, lote, sync, simular, metricas, prueba, dapta-setup, rne, web
+icp.json · .env.example       Cliente ideal de ejemplo; variables de entorno con marcadores (sin claves)
+```
+
+### Pantallas (capturas reales del despliegue)
+
+| | |
+|---|---|
+| ![Asistente de inicio](docs/capturas/inicio-chat.png) **Asistente de inicio:** NIT buscado en el RUES, página leída y propuesta de perfil y cliente ideal. | ![Buscar por chat](docs/capturas/buscar-chat.png) **Buscar:** la brújula propone fuentes y ciudad; 144 empresas nuevas en Medellín y la oferta de contactarlas. |
+| ![Llamada del agente de Dapta](docs/capturas/lead-llamada-dapta.png) **Detalle del lead:** la llamada real del agente de voz de Dapta, con calificación, variables, resumen, grabación y transcripción. | ![Tablero](docs/capturas/tablero.png) **Tablero:** costo por respuesta y por calificado, cuadrante costo contra calidad y Brújula contra pauta. |
+| ![En vivo](docs/capturas/en-vivo.png) **En vivo:** contadores de 24 horas, feed de lo que pasa y mapa de leads por ciudad. | |
 
 ---
 
@@ -61,6 +124,7 @@ Brújula le da a la pyme que no puede o no quiere pagar pauta una forma medible 
 | *Deseable:* **enviar los leads al agente de Dapta** | Los leads que responden entran a la secuencia del calificador de Dapta; el resultado vuelve por webhook y por `find_qualified_leads`. | Funciona. |
 | *Deseable:* **comparar canales por CPL y % de calificados** | Porcentaje de calificados por canal y un **cuadrante costo contra calidad** (costo por respuesta contra % de calificados, una burbuja por fuente y canal con su volumen): se ve de un vistazo qué canal trae leads baratos y cuál trae leads buenos. | Funciona. |
 | *Deseable:* **costo por lead calificado por canal** | CPLQ con el costo real de cada intento (créditos de Dapta cuando el proveedor lo entrega; tarifa publicada cuando no). | Funciona. |
+| **Extra: pantalla en vivo** | `/app/en-vivo`: contadores de 24 horas, feed de lo que pasa (búsquedas, lotes, envíos, respuestas, calificaciones) y mapa de leads por ciudad, para el Demo Day. | Funciona. |
 | **Extra: decidir dónde buscar** | La brújula: bandido multibrazo (Thompson sampling) por fuente × canal. Recompensa = leads calificados por dólar, piso de exploración del 15 % y una explicación en una frase por lote. Corre cada hora con EventBridge. | Funciona. |
 
 ---
@@ -89,7 +153,7 @@ flowchart LR
     SM[Secrets Manager<br/>claves de Dapta, LLM, correo]
     S3[(S3 privado<br/>URL prefirmadas)]
     EB[EventBridge<br/>lote cada hora · sync cada 15 min]
-    SES[Amazon SES<br/>correo + eventos]
+    SES[Correo<br/>Brevo · SES · Resend]
     BR[Amazon Bedrock<br/>agente de texto]
     ECR[ECR]
     CW[CloudWatch]
@@ -141,7 +205,7 @@ flowchart LR
 | **AWS Secrets Manager** | Clave MCP de Dapta, claves de los modelos, correo, cron y la URL de la base. | Nada sensible en la imagen ni en variables planas; la Lambda lo lee al arrancar. |
 | **Amazon EventBridge** (API destinations) | Regla 1: lote cada hora dentro de la ventana legal (L-V y sábados, hora Bogotá). Regla 2: sincronización con Dapta cada 15 minutos. | El ciclo "encontrar, contactar, medir, reasignar" corre solo, sin un proceso vivo. La app vuelve a validar la ventana: EventBridge propone, el cumplimiento dispone. |
 | **Amazon S3** | Subidas desde el navegador (lista propia, RNE) y exportaciones (leads, intentos, bitácora). | URL prefirmadas de 15 minutos: el servidor nunca recibe ni sirve el archivo. Bucket privado; las subidas caducan a los 30 días. |
-| **Amazon SES** | Canal correo con eventos de entrega, apertura, clic y rebote. | Remitente verificado, eventos por SNS al webhook. Resend es el segundo proveedor con la misma interfaz. |
+| **Correo: Brevo, Amazon SES o Resend** (`EMAIL_PROVIDER`) | Correos a leads (con botones de respuesta) y correos del sistema (bienvenida, avisos). | Hoy Brevo, porque SES está en sandbox en esta cuenta nueva (solo destinatarios verificados). SES conserva los eventos de entrega, apertura y clic por SNS; los tres proveedores comparten la misma interfaz. |
 | **Amazon Bedrock** (API converse) | Agente de texto: interpreta el cliente ideal, redacta el primer mensaje con las señales del lead y explica decisiones. | Modelo configurable (por defecto Claude Haiku 5.5). Si la cuenta no lo tiene habilitado, el mismo agente corre en OpenAI o en OpenRouter y, sin modelo, por reglas. |
 | **Amazon CloudWatch** | Logs de la Lambda. | Viene integrado. |
 | **IAM** | Política mínima para el usuario que despliega (`deploy/iam-politica-despliegue.json`) y rol propio de la función. | Mínimo privilegio. |
@@ -190,10 +254,10 @@ Brújula habla con Dapta por su **MCP oficial** (`https://mcp.dapta.ai/mcp`, cab
 - **Modo prueba para demos reales.** Todo el ciclo corre con leads reales, pero la llamada y el correo se desvían al equipo; el intento guarda el destino original y el desviado. Ningún tercero recibe nada.
 - **Seguridad.** Secretos en Secrets Manager, JWT de Cognito en cada llamada, bucket privado con URL prefirmadas y una política de IAM mínima.
 - **Tres idiomas.** Español, portugués e inglés según el país de la fuente, configurable por empresa.
-- **Probado.** Pruebas automáticas (`pytest`) de deduplicación, normalización, ICP, bandido, cumplimiento, Ley 2300 y festivos, modo prueba, idiomas, override de Dapta, almacenamiento, WhatsApp, asistentes y autenticación.
+- **Probado.** 41 pruebas automáticas (`pytest`) de deduplicación, normalización, ICP, bandido, cumplimiento, Ley 2300 y festivos, modo prueba, idiomas, override de Dapta, almacenamiento, WhatsApp, los dos asistentes, correo por Brevo y autenticación.
 
 ### Stack
-**Backend:** Python 3.12, FastAPI, SQLModel, httpx, boto3, rapidfuzz, phonenumbers, PyJWT. **Front:** Angular 20 (componentes standalone y signals). **Datos:** PostgreSQL (RDS) en la nube, SQLite en desarrollo. **IA:** Amazon Bedrock, OpenAI, Jev (TypeSafe) por OpenRouter. **Contacto:** Dapta (voz y WhatsApp) por MCP, Amazon SES y Resend.
+**Backend:** Python 3.12, FastAPI, SQLModel, httpx, boto3, rapidfuzz, phonenumbers, PyJWT. **Front:** Angular 20 (componentes standalone y signals). **Datos:** PostgreSQL (RDS) en la nube, SQLite en desarrollo. **IA:** Amazon Bedrock, OpenAI, Jev (TypeSafe) por OpenRouter. **Contacto:** Dapta (voz y WhatsApp) por MCP; correo por Brevo, Amazon SES o Resend.
 
 ---
 
