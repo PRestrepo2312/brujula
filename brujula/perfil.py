@@ -91,7 +91,11 @@ def sugerir(nombre: str, rues: dict | None = None, sitio: dict | None = None, no
     datos = agente._json_de(texto) if texto else None
     if not datos:
         return base, {"motor": "reglas", "nota": b.error}
-    sugerido = {**base, **{k: v for k, v in datos.items() if k in ("que_ofrece", "a_quien", "diferencial", "remitente", "icp_texto") and isinstance(v, str)}}
+    sugerido = {**base, **{k: v.strip() for k, v in datos.items() if k in ("que_ofrece", "a_quien", "diferencial", "remitente", "icp_texto") and isinstance(v, str)}}
+    # El modelo a veces repite el arranque de la frase ("Les escribe el equipo de X: …"); el correo ya lo pone.
+    sugerido["que_ofrece"] = re.sub(r"^\s*(les\s+escribe|aqui\s+é|this\s+is)\b[^:]{0,90}:\s*", "", sugerido.get("que_ofrece", ""), flags=re.I).strip()
+    if sugerido["que_ofrece"][:1].isupper() and len(sugerido["que_ofrece"]) > 1 and not sugerido["que_ofrece"][:2].isupper():
+        sugerido["que_ofrece"] = sugerido["que_ofrece"][0].lower() + sugerido["que_ofrece"][1:]
     sugerido["sectores"] = [s for s in (datos.get("sectores") or []) if isinstance(s, str)]
     sugerido["ciudades"] = [c for c in (datos.get("ciudades") or []) if isinstance(c, str)]
     return sugerido, {"motor": b.motor, "costo_usd": uso.costo_usd}
