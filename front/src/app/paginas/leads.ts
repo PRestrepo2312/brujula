@@ -11,7 +11,7 @@ const ESTADOS: [string, string][] = [['', 'Todos los estados'], ['listo', 'Listo
   imports: [FormsModule],
   template: `
     <div class="page-head">
-      <div><span class="eyebrow">Leads</span><h1>Las empresas <em>encontradas</em></h1><p>Cuánto encaja cada una con su cliente ideal y qué ha pasado con ella.</p></div>
+      <div><span class="eyebrow">Leads</span><h1>Las empresas <em>encontradas</em></h1><p>El encaje dice cuánto se parece cada una a su cliente ideal; el estado dice qué tan caliente está: contactada, respondió o ya la calificó el agente.</p></div>
       <div class="row"><button class="btn btn-secondary" (click)="exportar()">Exportar CSV</button>@if (urlExport()) {<a [href]="urlExport()" target="_blank">Descargar (15 min)</a>}</div>
     </div>
     <div class="card">
@@ -20,6 +20,7 @@ const ESTADOS: [string, string][] = [['', 'Todos los estados'], ['listo', 'Listo
         <select [(ngModel)]="estado" style="max-width:220px" (change)="cargar()">@for (e of estados; track e[0]) {<option [value]="e[0]">{{ e[1] }}</option>}</select>
         <select [(ngModel)]="icp" style="max-width:190px" (change)="cargar()"><option value="">Encaje: todos</option><option value="pasa">Encajan</option><option value="revisar">Por revisar</option><option value="descarta">No encajan</option></select>
         <input [(ngModel)]="fuente" placeholder="Fuente (reps, men…)" style="max-width:170px" (keyup.enter)="cargar()">
+        <select [(ngModel)]="orden" style="max-width:210px" (change)="cargar()"><option value="encaje">Mejor encaje primero</option><option value="calientes">Más calientes primero</option><option value="recientes">Últimos agregados</option></select>
         <button class="btn btn-secondary" (click)="cargar()">Filtrar</button>
         <span class="muted small">{{ leads().length }} leads</span>
       </div>
@@ -28,7 +29,7 @@ const ESTADOS: [string, string][] = [['', 'Todos los estados'], ['listo', 'Listo
         <tbody>
           @for (l of leads(); track l.id) {
             <tr class="row-link" (click)="abrir(l.id)">
-              <td><b>{{ titulo(l.razon_social) }}</b> @if ((l.fuentes_todas?.length ?? 0) > 1) {<span class="tag tag-info">{{ l.fuentes_todas?.length }} fuentes</span>}</td>
+              <td><b>{{ titulo(l.razon_social) }}</b> @if ((l.fuentes_todas?.length ?? 0) > 1) {<span class="tag tag-info">{{ l.fuentes_todas?.length }} fuentes</span>}<div class="muted small">agregada {{ hace(l.creado_en) }}</div></td>
               <td>{{ l.fuente_clave }}</td><td>{{ l.sector }}</td><td>{{ titulo(l.ciudad) }}</td><td>{{ l.canales?.join(', ') || '–' }}</td>
               <td class="num"><span class="tag" [class]="'tag ' + l.icp_estado">{{ l.icp_score != null ? (l.icp_score * 100).toFixed(0) + ' %' : '–' }}</span></td><td><span class="tag" [class]="'tag ' + claseEstado(l.estado)">{{ nombreEstado(l.estado) }}</span></td>
               <td class="muted small">{{ claves(l.senales) }}</td>
@@ -42,14 +43,19 @@ const ESTADOS: [string, string][] = [['', 'Todos los estados'], ['listo', 'Listo
 export class LeadsPage {
   private api = inject(ApiService);
   private router = inject(Router);
-  q = ''; estado = ''; fuente = ''; icp = '';
+  q = ''; estado = ''; fuente = ''; icp = ''; orden = 'encaje';
   estados = ESTADOS;
   leads = signal<Lead[]>([]);
   urlExport = signal('');
 
   constructor() { this.cargar(); }
   cargar(): void {
-    this.api.leads({ q: this.q, estado: this.estado, fuente: this.fuente, limite: 300 }).subscribe((l) => this.leads.set(this.icp ? l.filter((x) => x.icp_estado === this.icp) : l));
+    this.api.leads({ q: this.q, estado: this.estado, fuente: this.fuente, limite: 300, orden: this.orden }).subscribe((l) => this.leads.set(this.icp ? l.filter((x) => x.icp_estado === this.icp) : l));
+  }
+  hace(iso?: string): string {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z')).getTime(); const min = Math.round(ms / 60000);
+    if (min < 1) return 'ahora'; if (min < 60) return `hace ${min} min`; const h = Math.round(min / 60); if (h < 48) return `hace ${h} h`; return `hace ${Math.round(h / 24)} días`;
   }
   abrir(id: number): void { this.router.navigate(['/leads', id]); }
   exportar(): void { this.api.exportar('leads').subscribe((r) => this.urlExport.set(r.url.startsWith('http') ? r.url : `${(this.api as any).base}${r.url}`)); }

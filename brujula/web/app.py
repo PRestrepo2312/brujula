@@ -432,8 +432,16 @@ def api_buscar(request: Request, entrada: BusquedaEntrada):
     return r
 
 
+@app.post("/api/asistente/buscar")
+def api_asistente_buscar(request: Request, entrada: AsistenteEntrada):
+    """Buscar conversando: la brújula propone fuentes y ciudades a partir del cliente ideal, la persona corrige y confirma, y se corre la búsqueda."""
+    return asistente.responder_busqueda(empresa_de(request), entrada.mensaje, entrada.estado)
+
+
 @app.get("/api/leads")
-def api_leads(request: Request, estado: str = "", fuente: str = "", q: str = "", limite: int = 200, pagina: int = 1):
+def api_leads(request: Request, estado: str = "", fuente: str = "", q: str = "", limite: int = 200, pagina: int = 1, orden: str = "encaje"):
+    """orden: encaje (mejor puntaje contra el cliente ideal), calientes (calificados, luego respondieron, luego contactados) o recientes (últimos agregados)."""
+    from sqlalchemy import case
     emp_id = empresa_de(request)
     with sesion() as s:
         st = select(Lead).where(Lead.duplicado_de.is_(None), Lead.empresa_id == emp_id)
@@ -443,7 +451,14 @@ def api_leads(request: Request, estado: str = "", fuente: str = "", q: str = "",
             st = st.where(Lead.fuente_clave == fuente)
         if q:
             st = st.where(Lead.razon_social.contains(q.upper()))
-        filas = s.exec(st.order_by(Lead.icp_score.desc(), Lead.id).offset((pagina - 1) * limite).limit(limite)).all()
+        if orden == "calientes":
+            calor = case({"calificado": 0, "respondio": 1, "contactado": 2, "listo": 3, "nuevo": 4}, value=Lead.estado, else_=5)
+            st = st.order_by(calor, Lead.actualizado_en.desc(), Lead.icp_score.desc())
+        elif orden == "recientes":
+            st = st.order_by(Lead.creado_en.desc(), Lead.id.desc())
+        else:
+            st = st.order_by(Lead.icp_score.desc(), Lead.id)
+        filas = s.exec(st.offset((pagina - 1) * limite).limit(limite)).all()
     return [{k: v for k, v in l.model_dump().items() if k != "crudo"} for l in filas]
 
 

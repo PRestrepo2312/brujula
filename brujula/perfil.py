@@ -17,6 +17,25 @@ from .sources.co_rues import SECTOR_POR_CIIU
 from .sources.datos_gov import Socrata
 
 
+FORMAS_JURIDICAS = re.compile(
+    r"(?:\s*[,.\-]?\s*\b(?:S\.?\s?A\.?\s?S\.?(?:\s?B\.?\s?I\.?\s?C\.?)?|S\.?\s?A\.?|S\.?\s?C\.?\s?A\.?|S\.?\s?C\.?\s?S\.?|L\.?\s?T\.?\s?D\.?\s?A\.?|LIMITADA|E\.?\s?U\.?|"
+    r"S\s+EN\s+C\.?(?:\s?S\.?)?|SOCIEDAD\s+AN[OÓ]NIMA|Y\s+C[IÍ]A\.?|&\s+C[IÍ]A\.?|EN\s+LIQUIDACI[OÓ]N|B\.?\s?I\.?\s?C\.?|Z\.?O\.?M\.?A\.?C\.?|E\.?\s?S\.?\s?P\.?)\.?)+\s*$", re.I)
+MINUSCULAS = {"de", "del", "la", "las", "los", "y", "e", "en", "el", "para", "por", "con", "al", "a"}
+
+
+def nombre_comercial(razon_social: str, sigla: str = "") -> str:
+    """El nombre con el que una empresa del RUES se presentaría: sin la forma jurídica y en mayúsculas y minúsculas
+    (PANEL ROCK COLOMBIA S A S → Panel Rock Colombia)."""
+    base = (razon_social or "").strip()
+    base = FORMAS_JURIDICAS.sub("", base).strip(" ,.-") or base
+    if not base:
+        base = (sigla or "").strip()
+    if base.isupper() or base.islower():
+        palabras = base.lower().split()
+        base = " ".join(w if (i and w in MINUSCULAS) else w.capitalize() for i, w in enumerate(palabras))
+    return base
+
+
 def buscar_nit(nit: str) -> dict | None:
     """La empresa en el RUES (Confecámaras) por NIT, con o sin dígito de verificación."""
     digitos = re.sub(r"\D", "", nit or "")
@@ -29,7 +48,7 @@ def buscar_nit(nit: str) -> dict | None:
         if filas:
             f = filas[0]
             ciiu = (f.get("cod_ciiu_act_econ_pri") or "")[:4]
-            return {"nit": n, "razon_social": f.get("razon_social", ""), "sigla": f.get("sigla", ""),
+            return {"nit": n, "razon_social": f.get("razon_social", ""), "sigla": f.get("sigla", ""), "nombre_comercial": nombre_comercial(f.get("razon_social", ""), f.get("sigla", "")),
                     "ciudad": (f.get("camara_comercio") or "").split(" PARA ")[0].split(" DE ")[-1], "camara": f.get("camara_comercio", ""),
                     "ciiu": ciiu, "sector": SECTOR_POR_CIIU.get(ciiu[:2], "otro"), "matricula": f.get("fecha_matricula", ""),
                     "estado": f.get("estado_matricula", ""), "tipo": f.get("organizacion_juridica", ""), "representante": f.get("representante_legal", "")}
@@ -59,19 +78,23 @@ def leer_sitio(url: str) -> dict:
     return {"url": str(r.url), "estado": r.status_code, "titulo": limpio(titulo)[:160], "descripcion": limpio(desc)[:400], "texto": texto[:4000]}
 
 
-def sugerir(nombre: str, rues: dict | None = None, sitio: dict | None = None, notas: str = "") -> tuple[dict, dict]:
+def sugerir(nombre: str, rues: dict | None = None, sitio: dict | None = None, notas: str = "", actual: dict | None = None) -> tuple[dict, dict]:
     """Qué ofrece, a quién, diferencial, cómo firmar y cliente ideal. Con agente de texto, lo redacta a partir del RUES, la página y
-    las notas; sin agente, arma lo básico con el título, la descripción y el sector del RUES."""
+    las notas; sin agente, arma lo básico con el título, la descripción y el sector del RUES.
+
+    `actual` es la propuesta que la persona ya tiene en pantalla: las notas se aplican sobre ella en vez de redactar todo de cero."""
     rues = rues or {}
     sitio = sitio or {}
+    actual = {k: v for k, v in (actual or {}).items() if k in ("que_ofrece", "a_quien", "diferencial", "remitente", "icp_texto") and isinstance(v, str) and v.strip()}
     base = {
-        "nombre": nombre or rues.get("sigla") or rues.get("razon_social", "").title(),
+        "nombre": nombre or nombre_comercial(rues.get("razon_social", ""), rues.get("sigla", "")),
         "que_ofrece": (sitio.get("descripcion") or sitio.get("titulo") or "").strip(),
         "a_quien": "",
         "diferencial": "",
         "remitente": f"el equipo de {nombre}" if nombre else "",
-        "icp_texto": (f"Empresas de {rues['sector']} en {rues['ciudad'].title()}" if rues.get("sector") and rues.get("ciudad") else ""),
+        "icp_texto": "",   # sin agente no se adivina a quién le vende (el sector del RUES es el de ella, no el de sus clientes); el asistente lo pregunta
     }
+    base.update(actual)
     b = agente.llm()
     if not b.disponible:
         return base, {"motor": "reglas"}
@@ -83,10 +106,11 @@ def sugerir(nombre: str, rues: dict | None = None, sitio: dict | None = None, no
                "remitente (cómo firmar, p. ej. 'el equipo de X' o 'Ana, de X'), "
                "icp_texto (su cliente ideal en español, una o dos frases con sector, tamaño y ciudades, como para buscarlo en registros públicos de empresas), "
                "sectores (lista entre: salud, educacion, turismo, inmobiliario, automotor, servicios, software, comercio, otro), ciudades (lista en MAYÚSCULAS sin tildes). "
-               "Si la página no es de esa empresa o está vacía, apóyate en el registro y las notas. Español de Colombia.")
+               "Si la página no es de esa empresa o está vacía, apóyate en el registro y las notas. Español de Colombia. "
+               "Si viene propuesta_actual, consérvala y cambia solo lo que pidan las notas.")
     usuario = json.dumps({"nombre": nombre, "registro_mercantil": {k: rues.get(k) for k in ("razon_social", "sigla", "ciudad", "sector", "ciiu", "tipo", "matricula")},
                           "pagina": {k: sitio.get(k) for k in ("url", "titulo", "descripcion")}, "texto_pagina": (sitio.get("texto") or "")[:3000],
-                          "notas": notas[:1000]}, ensure_ascii=False)
+                          "propuesta_actual": actual or None, "notas": notas[:1000]}, ensure_ascii=False)
     texto, uso = b.preguntar(sistema, usuario, max_tokens=600)
     datos = agente._json_de(texto) if texto else None
     if not datos:

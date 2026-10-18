@@ -128,10 +128,24 @@ export class ConfiguracionPage {
   buscarNit(): void {
     this.ocupado.set(true); this.msgPerfil.set('');
     this.api.nit(this.form.config.perfil.nit).subscribe({
-      next: (r) => { this.rues = r; if (!this.form.config.perfil.nombre) this.form.config.perfil.nombre = this.titulo(r.sigla || r.razon_social); this.msgPerfil.set(`RUES: ${r.razon_social}, ${this.titulo(r.ciudad)}, sector ${r.sector}, matrícula ${r.matricula}.`); this.ocupado.set(false); },
+      next: (r) => { this.tomarRues(r); this.msgPerfil.set(`RUES: ${r.razon_social}, ${this.titulo(r.ciudad)}, sector ${r.sector}, matrícula ${r.matricula}. Se presenta como ${this.form.config.perfil.nombre}.`); this.ocupado.set(false); },
       error: (e) => { this.msgPerfil.set(e.error?.error || 'No se pudo consultar el RUES'); this.ocupado.set(false); } });
   }
+  /** El nombre del registro reemplaza al de la empresa solo si la persona no escribió uno propio. */
+  private tomarRues(r: any): void {
+    this.rues = r; const p = this.form.config.perfil;
+    if (!p.nombre || p.nombre === this.e()?.nombre) p.nombre = r.nombre_comercial || this.titulo(r.razon_social);
+  }
   proponer(): void {
+    const p = this.form.config.perfil;
+    if (!this.rues && (p.nit || '').replace(/\D/g, '').length >= 8) {
+      this.ocupado.set(true); this.msgPerfil.set('Buscando el NIT en el RUES…');
+      this.api.nit(p.nit).subscribe({ next: (r) => { this.tomarRues(r); this.sugerir(); }, error: () => this.sugerir() });
+      return;
+    }
+    this.sugerir();
+  }
+  private sugerir(): void {
     this.ocupado.set(true); this.msgPerfil.set('');
     const p = this.form.config.perfil;
     this.api.sugerir({ nombre: p.nombre || this.e()?.nombre || '', rues: this.rues, sitio: p.sitio_web ? { url: p.sitio_web } : null, notas: '' }).subscribe({

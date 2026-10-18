@@ -8,6 +8,7 @@ export const routes: Routes = [
   { path: '', canActivate: [authGuard], loadComponent: () => import('./paginas/tablero').then((m) => m.TableroPage) },
   { path: 'inicio', canActivate: [authGuard], loadComponent: () => import('./paginas/inicio').then((m) => m.InicioPage) },
   { path: 'buscar', canActivate: [authGuard], loadComponent: () => import('./paginas/buscar').then((m) => m.BuscarPage) },
+  { path: 'buscar/manual', canActivate: [authGuard], loadComponent: () => import('./paginas/buscar-manual').then((m) => m.BuscarManualPage) },
   { path: 'leads', canActivate: [authGuard], loadComponent: () => import('./paginas/leads').then((m) => m.LeadsPage) },
   { path: 'leads/:id', canActivate: [authGuard], loadComponent: () => import('./paginas/lead-detalle').then((m) => m.LeadDetallePage) },
   { path: 'lotes', canActivate: [authGuard], loadComponent: () => import('./paginas/lotes').then((m) => m.LotesPage) },

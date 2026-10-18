@@ -7,6 +7,7 @@ export interface Lead {
   id: number; razon_social: string; sector: string; subsector: string; ciudad: string; telefono: string | null; telefono_tipo: string;
   correo: string | null; sitio_web: string | null; canales: string[] | null; senales: Record<string, unknown>; fuente_clave: string; fuentes_todas: string[] | null;
   icp_score: number | null; icp_estado: string; icp_detalle: Record<string, unknown>; estado: string; identificacion: string | null; empleados: number | null;
+  creado_en?: string; actualizado_en?: string;
 }
 export interface Metricas {
   calculado_en: string; recomendacion: string;
@@ -27,7 +28,7 @@ export class ApiService {
   metricas(): Observable<Metricas> { return this.http.get<Metricas>(`${this.base}/api/metricas`); }
   fuentes(): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/fuentes`); }
   buscar(cuerpo: { fuentes: string[]; ciudad: string; sector: string; limite: number; parametros?: Record<string, { ciudad?: string; sector?: string }> }): Observable<any> { return this.http.post(`${this.base}/api/buscar`, cuerpo); }
-  leads(filtros: { estado?: string; fuente?: string; q?: string; limite?: number; pagina?: number } = {}): Observable<Lead[]> {
+  leads(filtros: { estado?: string; fuente?: string; q?: string; limite?: number; pagina?: number; orden?: string } = {}): Observable<Lead[]> {
     let p = new HttpParams();
     Object.entries(filtros).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== null) p = p.set(k, String(v)); });
     return this.http.get<Lead[]>(`${this.base}/api/leads`, { params: p });
@@ -53,6 +54,7 @@ export class ApiService {
   registro(cuerpo: { empresa: string; email: string; clave: string; icp_texto: string; nit?: string; rues?: any }): Observable<any> { return this.http.post(`${this.base}/api/registro`, cuerpo); }
   nit(nit: string): Observable<any> { return this.http.post(`${this.base}/api/nit`, { nit }); }
   asistente(mensaje: string, estado: any): Observable<any> { return this.http.post(`${this.base}/api/asistente`, { mensaje, estado }); }
+  asistenteBuscar(mensaje: string, estado: any): Observable<any> { return this.http.post(`${this.base}/api/asistente/buscar`, { mensaje, estado }); }
   sitio(url: string): Observable<any> { return this.http.post(`${this.base}/api/empresa/sitio`, { url }); }
   sugerir(cuerpo: { nombre: string; rues?: any; sitio?: any; notas?: string }): Observable<any> { return this.http.post(`${this.base}/api/empresa/sugerir`, cuerpo); }
   notificaciones(noLeidas = false): Observable<any[]> { return this.http.get<any[]>(`${this.base}/api/notificaciones`, { params: { no_leidas: noLeidas } }); }
