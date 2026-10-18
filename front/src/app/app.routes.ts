@@ -6,6 +6,7 @@ export const routes: Routes = [
   { path: 'callback', loadComponent: () => import('./paginas/callback').then((m) => m.CallbackPage) },
   { path: 'registro', loadComponent: () => import('./paginas/registro').then((m) => m.RegistroPage) },
   { path: '', canActivate: [authGuard], loadComponent: () => import('./paginas/tablero').then((m) => m.TableroPage) },
+  { path: 'inicio', canActivate: [authGuard], loadComponent: () => import('./paginas/inicio').then((m) => m.InicioPage) },
   { path: 'buscar', canActivate: [authGuard], loadComponent: () => import('./paginas/buscar').then((m) => m.BuscarPage) },
   { path: 'leads', canActivate: [authGuard], loadComponent: () => import('./paginas/leads').then((m) => m.LeadsPage) },
   { path: 'leads/:id', canActivate: [authGuard], loadComponent: () => import('./paginas/lead-detalle').then((m) => m.LeadDetallePage) },

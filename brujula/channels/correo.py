@@ -26,8 +26,10 @@ class CanalCorreo(Canal):
         token = intento.detalle.get("token") or secrets.token_urlsafe(12)
         base = config.public_base_url.rstrip("/")
         urls = {v: f"{base}/r/{token}?v={v}" for v in ("si", "no", "baja")}
+        from ..empresas import perfil_de
         idioma = idioma_de(lead, intento.empresa_id)
-        texto, _ = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"], idioma=idioma)
+        perfil = perfil_de(intento.empresa_id)
+        texto, _ = cuerpo_correo(lead, urls["si"], urls["no"], urls["baja"], idioma=idioma, perfil=perfil)
         redactado = (intento.detalle or {}).get("texto")
         if redactado and "{url_si}" in redactado:
             texto = redactado.replace("{url_si}", urls["si"]).replace("{url_no}", urls["no"]).replace("{url_baja}", urls["baja"])
@@ -42,7 +44,7 @@ class CanalCorreo(Canal):
             detalle["desvio"] = {"original": lead.correo, "destino": destino}
             nota = f"Prueba: este correo iba para {lead.correo}"
         # El HTML con la marca (botones en vez de enlaces sueltos) se arma siempre a partir del texto, sea plantilla o redacción del agente.
-        html = html_correo(texto, urls["si"], urls["no"], urls["baja"], nota=nota, idioma=idioma)
+        html = html_correo(texto, urls["si"], urls["no"], urls["baja"], nota=nota, idioma=idioma, perfil=perfil)
         if nota:
             texto = f"[{nota}]\n\n{texto}"
         if not self.real:

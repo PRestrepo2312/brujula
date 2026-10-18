@@ -21,7 +21,7 @@ const ESTADOS_MX: [string, string][] = [['00', 'Todo México'], ['01', 'Aguascal
   selector: 'pagina-buscar',
   imports: [FormsModule, RouterLink],
   template: `
-    <div class="page-head"><div><h1>Buscar</h1><p>Describa a quién busca, elija las fuentes públicas y Brújula trae las empresas, las deduplica y las puntúa contra su cliente ideal.</p></div></div>
+    <div class="page-head"><div><span class="eyebrow">Buscar</span><h1>Encuentre <em>empresas</em> en registros públicos</h1><p>Describa a quién busca, elija las fuentes y Brújula trae las empresas, quita las repetidas y mide cuánto encaja cada una con su cliente ideal.</p></div></div>
     <div class="grid cols-main">
       <div>
         <div class="card">
@@ -36,7 +36,7 @@ const ESTADOS_MX: [string, string][] = [['00', 'Todo México'], ['01', 'Aguascal
                 @if (i.empleados_min || i.empleados_max) {<span class="tag">{{ i.empleados_min ?? '' }} a {{ i.empleados_max ?? '' }} empleados</span>}
                 @for (p of i.palabras_sector; track p) {<span class="tag">{{ p }}</span>}
               </div>
-              <p class="small muted" style="margin-top:8px">Pasa con 0,70 o más; entre 0,40 y 0,70 lo revisa una persona; por debajo se descarta.</p>
+              <p class="small muted" style="margin-top:8px">Encaja con 70 % o más; entre 40 % y 70 % lo revisa una persona; por debajo se descarta.</p>
             }
           </div></div>
         </div>
@@ -83,8 +83,8 @@ const ESTADOS_MX: [string, string][] = [['00', 'Todo México'], ['01', 'Aguascal
               <div class="field"><label>Brasil: CNPJ separados por coma</label><textarea rows="3" [(ngModel)]="cnpjs" placeholder="12345678000195, 98765432000100"></textarea><span class="hint">Salen de una consulta por CNAE en Base dos Dados.</span></div>
             }
             <div class="row" style="margin-top:4px">
-              <button class="btn btn-primary btn-lg" (click)="buscar()" [disabled]="ocupado() || elegidas().length === 0 || (elegidas().includes('cnpj') && !cnpjs.trim())">{{ ocupado() ? 'Buscando…' : 'Buscar y puntuar' }}</button>
-              <button class="btn btn-ghost" (click)="puntuar()" [disabled]="ocupado()">Volver a puntuar pendientes</button>
+              <button class="btn btn-primary btn-lg" (click)="buscar()" [disabled]="ocupado() || elegidas().length === 0 || (elegidas().includes('cnpj') && !cnpjs.trim())">{{ ocupado() ? 'Buscando…' : 'Buscar empresas' }}</button>
+              <button class="btn btn-ghost" (click)="puntuar()" [disabled]="ocupado()">Volver a medir el encaje de los pendientes</button>
             </div>
             @if (ocupado()) {<p class="small muted" style="margin-top:8px">Consultando fuentes públicas; puede tardar hasta un minuto por fuente.</p>}
             @if (error()) {<div class="banner banner-danger">{{ error() }}</div>}
@@ -95,7 +95,7 @@ const ESTADOS_MX: [string, string][] = [['00', 'Todo México'], ['01', 'Aguascal
         <div class="card">
           <h2>Resultado</h2>
           @if (resultado(); as r) {
-            <div class="banner banner-ok"><b>{{ r.nuevos }}</b> empresas nuevas. ICP: {{ r.icp?.pasa ?? 0 }} pasan, {{ r.icp?.revisar ?? 0 }} por revisar, {{ r.icp?.descarta ?? 0 }} descartadas. <a routerLink="/leads">Ver leads</a></div>
+            <div class="banner banner-ok"><b>{{ r.nuevos }}</b> empresas nuevas. Cliente ideal: {{ r.icp?.pasa ?? 0 }} encajan, {{ r.icp?.revisar ?? 0 }} por revisar, {{ r.icp?.descarta ?? 0 }} no encajan. <a routerLink="/leads">Ver leads</a></div>
             <div class="table-wrap"><table class="table">
               <thead><tr><th>Fuente</th><th class="num">Nuevas</th><th class="num">Ya estaban</th><th class="num">Duplicados</th><th>Detalle</th></tr></thead>
               <tbody>@for (f of r.fuentes; track f.fuente) {<tr><td>{{ nombreDe(f.fuente) }}</td><td class="num">{{ f.nuevos ?? '–' }}</td><td class="num">{{ f.ya_estaban ?? '–' }}</td><td class="num">{{ f.dedupe?.duplicados ?? '–' }}</td><td [class.muted]="!f.error">{{ f.error || (f.segundos + ' s') }}</td></tr>}</tbody>

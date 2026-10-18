@@ -17,7 +17,37 @@ CONFIG_DEFECTO = {
     "remitente": "",
     "respetar_ley_2300": True,     # False = la empresa asume la responsabilidad de contactar fuera del horario legal (queda en la bitácora)
     "idiomas": {},                 # idioma de los mensajes por fuente, p. ej. {"nyc": "en"}; sin valor, el del país de la fuente
+    "perfil": {},                  # perfil comercial: nombre, que_ofrece, a_quien, diferencial, remitente, sitio_web, nit (lo que dicen los mensajes)
 }
+
+# La empresa de demostración habla como Brújula; cualquier otra habla de sí misma (su perfil lo llena el asistente de inicio).
+PERFIL_DEMO = {
+    "nombre": "Brújula",
+    "que_ofrece": "estamos probando una herramienta que ayuda a negocios como el suyo a atender y calificar a los clientes que escriben o llaman, sin perder ninguno",
+    "a_quien": "pymes de servicios que reciben clientes por teléfono o WhatsApp: clínicas, colegios, hoteles y agencias",
+    "diferencial": "mide cuánto cuesta cada cliente calificado por fuente y canal",
+    "remitente": "el equipo Brújula",
+}
+
+
+def perfil_de(empresa_id: int) -> dict:
+    """Perfil comercial con el que la empresa se presenta en correos, WhatsApp y llamadas. completo=False si aún no lo llenó."""
+    e = obtener(empresa_id)
+    guardado = dict(((e.config or {}).get("perfil") or {}) if e else {})
+    if empresa_id == EMPRESA_DEMO and not guardado.get("que_ofrece"):
+        guardado = {**PERFIL_DEMO, **guardado}
+    nombre = (guardado.get("nombre") or (e.nombre if e else "") or "la empresa").strip()
+    que_ofrece = (guardado.get("que_ofrece") or "").strip()
+    return {
+        "nombre": nombre,
+        "que_ofrece": que_ofrece or f"{nombre} ofrece sus servicios a empresas como la suya",
+        "a_quien": (guardado.get("a_quien") or "").strip(),
+        "diferencial": (guardado.get("diferencial") or "").strip(),
+        "remitente": (guardado.get("remitente") or f"el equipo de {nombre}").strip(),
+        "sitio_web": (guardado.get("sitio_web") or "").strip(),
+        "nit": (guardado.get("nit") or "").strip(),
+        "completo": bool(que_ofrece),
+    }
 
 
 def slug_de(nombre: str) -> str:

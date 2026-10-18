@@ -1,19 +1,35 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'pagina-configuracion',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
-    <div class="page-head"><div><h1>Configuración</h1><p>Cómo contacta su empresa, con qué agentes y quién entra.</p></div></div>
+    <div class="page-head"><div><span class="eyebrow">Configuración</span><h1>Su empresa y <em>cómo contacta</em></h1><p>Cómo se presenta, por qué canales, con qué horario y quién entra.</p></div></div>
     @if (e(); as e) {
       <div class="grid cols-main">
         <div>
           <div class="card">
             <div class="card-head"><h2>{{ e.nombre }}</h2><button class="btn btn-primary" (click)="guardar()" [disabled]="ocupado()">Guardar cambios</button></div>
             @if (msg()) {<div class="banner banner-ok">{{ msg() }}</div>}
+            <h2 style="margin-top:4px">Cómo se presenta</h2>
+            <p class="small muted">Lo que dicen los correos, los mensajes de WhatsApp y la llamada del agente en su nombre. <a routerLink="/inicio">Abrir el asistente de inicio</a> para proponerlo con su NIT y su página.</p>
+            <div class="grid cols-2">
+              <div class="field"><label>Nombre con el que se presenta</label><input [(ngModel)]="form.config.perfil.nombre" [placeholder]="e.nombre"></div>
+              <div class="field"><label>Quién firma</label><input [(ngModel)]="form.config.perfil.remitente" placeholder="el equipo de {{ e.nombre }}"></div>
+            </div>
+            <div class="field"><label>Qué ofrece <span class="muted">(completa "Les escribe …: ")</span></label><textarea rows="2" [(ngModel)]="form.config.perfil.que_ofrece" placeholder="llenamos la agenda de clínicas odontológicas con pacientes nuevos"></textarea></div>
+            <div class="grid cols-2">
+              <div class="field"><label>A quién le vende</label><input [(ngModel)]="form.config.perfil.a_quien"></div>
+              <div class="field"><label>Qué lo distingue</label><input [(ngModel)]="form.config.perfil.diferencial"></div>
+              <div class="field"><label>NIT</label><input [(ngModel)]="form.config.perfil.nit"></div>
+              <div class="field"><label>Página web</label><input [(ngModel)]="form.config.perfil.sitio_web"></div>
+            </div>
+            <hr class="divider">
+            <h2>Datos y canales</h2>
             <div class="grid cols-2">
               <div class="field"><label>Nombre</label><input [(ngModel)]="form.nombre"></div>
               <div class="field"><label>Correo para notificaciones</label><input [(ngModel)]="form.correo_notificaciones" placeholder="ventas@empresa.com"></div>
@@ -54,7 +70,7 @@ import { AuthService } from '../core/auth.service';
           @if (estado(); as s) {
             <div class="card">
               <div class="card-head"><h2>Modo prueba</h2><span class="tag" [class.tag-warn]="s.modo_prueba?.activo">{{ s.modo_prueba?.activo ? 'activo: desvío' : 'apagado: contacto real' }}</span></div>
-              <p class="small">Demo real sin tocar a terceros: la búsqueda, el ICP, el pitch con el nombre y las señales de cada empresa, el lote y las métricas corren igual, pero la llamada del agente se marca a <b>{{ s.modo_prueba?.telefono || 'ningún número (se fija al desplegar con TELEFONO_PRUEBA)' }}</b> (una por lote) y los correos van a <b>{{ s.modo_prueba?.correos?.join(', ') || 'ningún correo' }}</b>. El intento guarda el destino original y el desviado. Para contactar de verdad se despliega con MODO_PRUEBA=0 y sin destinos.</p>
+              <p class="small">Demostración real sin tocar a terceros: la búsqueda, el cliente ideal, el mensaje con el nombre y las señales de cada empresa, el lote y las métricas corren igual, pero la llamada del agente se marca a <b>{{ s.modo_prueba?.telefono || 'ningún número (se fija al desplegar con TELEFONO_PRUEBA)' }}</b> (una por lote) y los correos van a <b>{{ s.modo_prueba?.correos?.join(', ') || 'ningún correo' }}</b>. Cada contacto guarda el destino original y el desviado. Para contactar de verdad se despliega con MODO_PRUEBA=0 y sin destinos.</p>
             </div>
           }
           <div class="card">
@@ -92,7 +108,7 @@ export class ConfiguracionPage {
   auth = inject(AuthService);
   e = signal<any>(null);
   empresas = signal<any[]>([]);
-  form: any = { nombre: '', correo_notificaciones: '', dapta_api_key: '', dapta_agent_id: '', dapta_sequence_id: '', config: { canales: ['voz', 'correo'], presupuesto_lote: 20, notificar_por: ['app', 'correo'], idiomas: {} } };
+  form: any = { nombre: '', correo_notificaciones: '', dapta_api_key: '', dapta_agent_id: '', dapta_sequence_id: '', config: { canales: ['voz', 'correo'], presupuesto_lote: 20, notificar_por: ['app', 'correo'], idiomas: {}, perfil: {} } };
   nueva = { nombre: '', correo_notificaciones: '', icp_texto: '' };
   usuario = { email: '', empresa_id: 1, rol: 'usuario' };
   estado = signal<any>(null);
@@ -104,7 +120,7 @@ export class ConfiguracionPage {
   cargar(): void {
     this.api.estado().subscribe((s) => this.estado.set(s));
     this.api.fuentes().subscribe((f) => this.fuentes.set(f.filter((x) => x.clave !== 'csv')));
-    this.api.empresa().subscribe((e) => { this.e.set(e); this.form = { nombre: e.nombre, correo_notificaciones: e.correo_notificaciones, dapta_api_key: '', dapta_agent_id: e.dapta_agent_id, dapta_sequence_id: e.dapta_sequence_id, config: { idiomas: {}, ...e.config } }; this.usuario.empresa_id = e.id; });
+    this.api.empresa().subscribe((e) => { this.e.set(e); this.form = { nombre: e.nombre, correo_notificaciones: e.correo_notificaciones, dapta_api_key: '', dapta_agent_id: e.dapta_agent_id, dapta_sequence_id: e.dapta_sequence_id, config: { idiomas: {}, ...e.config, perfil: { nombre: '', remitente: '', que_ofrece: '', a_quien: '', diferencial: '', nit: '', sitio_web: '', ...(e.config?.perfil || {}) } } }; this.usuario.empresa_id = e.id; });
     if (this.auth.rol === 'superadmin') this.api.empresas().subscribe({ next: (l) => this.empresas.set(l), error: () => {} });
   }
   alternar(c: string): void { const l = this.form.config.canales as string[]; this.form.config.canales = l.includes(c) ? l.filter((x) => x !== c) : [...l, c]; }

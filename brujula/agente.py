@@ -98,11 +98,41 @@ class OpenRouterLLM:
             return None, Uso()
 
 
+class OpenAILLM:
+    """OpenAI con un modelo barato (OPENAI_MODEL, por defecto gpt-4.1-mini): el agente de texto mientras Bedrock no esté habilitado."""
+
+    def __init__(self):
+        self.modelo = config.openai_model
+        self.disponible = bool(config.openai_api_key and self.modelo)
+        self.error = ""
+
+    def preguntar(self, sistema: str, usuario: str, max_tokens: int = 600) -> tuple[str | None, Uso]:
+        if not self.disponible:
+            return None, Uso()
+        try:
+            r = httpx.post("https://api.openai.com/v1/chat/completions", timeout=60, headers={"Authorization": f"Bearer {config.openai_api_key}"},
+                           json={"model": self.modelo, "temperature": 0.2, "max_tokens": max_tokens,
+                                 "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]})
+            if r.status_code >= 300:
+                self.error = f"OpenAI {r.status_code}: {r.text[:160]}"
+                if r.status_code in (401, 403, 404):          # clave o modelo: no insistir
+                    self.disponible = False
+                return None, Uso()
+            d = r.json()
+            texto = d["choices"][0]["message"]["content"]
+            u = d.get("usage") or {}
+            return texto, Uso(int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0)))
+        except Exception as e:  # noqa: BLE001
+            self.error = str(e)[:200]
+            return None, Uso()
+
+
 class LLM:
-    """Bedrock si la cuenta lo permite; si no, OpenRouter; si no hay ninguno, mandan las reglas y las plantillas."""
+    """Bedrock si la cuenta lo permite; si no, OpenAI; si no, OpenRouter; si no hay ninguno, mandan las reglas y las plantillas."""
 
     def __init__(self):
         self.bedrock = Bedrock()
+        self.openai = OpenAILLM()
         self.openrouter = OpenRouterLLM()
         self._probado = False
 
@@ -115,24 +145,30 @@ class LLM:
     @property
     def disponible(self) -> bool:
         self._probar()
-        return self.bedrock.disponible or self.openrouter.disponible
+        return self.bedrock.disponible or self.openai.disponible or self.openrouter.disponible
 
     @property
     def motor(self) -> str:
         self._probar()
         if self.bedrock.disponible:
             return f"bedrock:{self.bedrock.modelo}"
+        if self.openai.disponible:
+            return f"openai:{self.openai.modelo}"
         if self.openrouter.disponible:
             return f"openrouter:{self.openrouter.modelo}"
         return "reglas"
 
     @property
     def error(self) -> str:
-        return getattr(self.bedrock, "error", "") or self.openrouter.error
+        return getattr(self.bedrock, "error", "") or self.openai.error or self.openrouter.error
 
     def preguntar(self, sistema: str, usuario: str, max_tokens: int = 600) -> tuple[str | None, Uso]:
         if self.bedrock.disponible:
             texto, uso = self.bedrock.preguntar(sistema, usuario, max_tokens)
+            if texto is not None:
+                return texto, uso
+        if self.openai.disponible:
+            texto, uso = self.openai.preguntar(sistema, usuario, max_tokens)
             if texto is not None:
                 return texto, uso
         if self.openrouter.disponible:
@@ -211,26 +247,30 @@ def interpretar_icp(texto: str) -> tuple[ICP, dict]:
 IDIOMA_REDACCION = {"es": "en español de Colombia", "pt": "em português do Brasil", "en": "in US English"}
 
 
-def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None, idioma: str = "es") -> tuple[str, dict]:
-    """Texto del primer mensaje en el idioma pedido (es, pt, en). El agente lo personaliza con la señal; sin agente, plantilla en ese idioma."""
-    from .mensajes import TEXTOS, cuerpo_correo, nombre_bonito, senal_en_palabras, whatsapp_texto
+def redactar_mensaje(lead: Lead, canal: str, icp: ICP | None = None, idioma: str = "es", perfil: dict | None = None) -> tuple[str, dict]:
+    """Texto del primer mensaje en el idioma pedido (es, pt, en), de parte de la empresa que usa Brújula (su perfil: nombre, qué ofrece, quién firma).
+    El agente lo personaliza con la señal del lead; sin agente, plantilla en ese idioma."""
+    from .mensajes import TEXTOS, _perfil, cuerpo_correo, nombre_bonito, senal_en_palabras, whatsapp_texto
     idioma = idioma if idioma in TEXTOS else "es"
+    p = _perfil(perfil)
     b = bedrock()
     if canal == "whatsapp" or not b.disponible:
         if canal == "correo":
-            return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
-        return whatsapp_texto(lead, idioma), {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
+            return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma, perfil=p)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
+        return whatsapp_texto(lead, idioma, perfil=p), {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
     t = TEXTOS[idioma]
-    sistema = (f"Redactas el primer mensaje de contacto comercial de Brújula a una empresa, escrito {IDIOMA_REDACCION[idioma]}, honesto y corto (máximo 90 palabras). "
-               "Reglas: saluda al equipo de {empresa}; menciona la señal; explica en una frase qué hacemos (ayudamos a negocios a atender y calificar a los clientes que llaman o escriben, sin perder ninguno); "
+    sistema = (f"Redactas el primer mensaje de contacto comercial que {p['nombre']} envía a otra empresa, escrito {IDIOMA_REDACCION[idioma]}, honesto y corto (máximo 90 palabras). "
+               f"Quien escribe es {p['remitente']}. Lo que ofrece: {p['que_ofrece']}."
+               + (f" A quién le vende: {p['a_quien']}." if p.get("a_quien") else "") + (f" Qué lo distingue: {p['diferencial']}." if p.get("diferencial") else "")
+               + " Reglas: saluda al equipo de {empresa}; menciona la señal; explica en una frase qué ofrece; "
                f"pide una llamada de 5 minutos; al final, en tres líneas aparte, pon literalmente '{t['si']}: {{url_si}}', '{t['no']}: {{url_no}}' y "
                "'{url_baja}' precedido de una frase corta para darse de baja (esas marcas se convierten en botones). Nada de promesas ni precios. "
                "Responde solo con el mensaje, en el idioma indicado.")
     usuario = json.dumps({"empresa": nombre_bonito(lead.razon_social), "ciudad": lead.ciudad.title(), "sector": lead.sector, "senal": senal_en_palabras(lead, idioma),
-                          "perfil": (icp.descripcion if icp else ""), "idioma": idioma}, ensure_ascii=False)
+                          "cliente_ideal": (icp.descripcion if icp else ""), "idioma": idioma}, ensure_ascii=False)
     texto, uso = b.preguntar(sistema, usuario, max_tokens=350)
     if not texto or "{url_si}" not in texto or "{url_baja}" not in texto:
-        return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
+        return cuerpo_correo(lead, "{url_si}", "{url_no}", "{url_baja}", idioma=idioma, perfil=p)[0], {"motor": "plantilla", "costo_usd": 0.0, "idioma": idioma}
     return texto.strip(), {"motor": b.motor, "costo_usd": uso.costo_usd, "idioma": idioma}
 
 

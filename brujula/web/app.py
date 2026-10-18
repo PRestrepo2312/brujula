@@ -79,6 +79,7 @@ class EmpresaEntrada(BaseModel):
 class EmpresaCambio(BaseModel):
     nombre: str | None = None
     correo_notificaciones: str | None = None
+    icp_texto: str | None = None
     dapta_api_key: str | None = None
     dapta_agent_id: str | None = None
     dapta_sequence_id: str | None = None
@@ -90,6 +91,8 @@ class RegistroEntrada(BaseModel):
     email: str
     clave: str
     icp_texto: str = ""
+    nit: str = ""
+    rues: dict | None = None      # lo que trajo /api/nit, para guardarlo en el perfil sin volver a consultar
 
 
 class UsuarioEntrada(BaseModel):
@@ -403,6 +406,7 @@ def api_estado(request: Request):
     from ..channels.voz_dapta import CanalVozDapta
     return {"leads": n, "ventana_ok": ok, "razon": razon, "ahora": ahora_local().isoformat(), "proxima_ventana": proxima_ventana().isoformat(),
             "respetar_ley_2300": bool(empresas.config_de(emp_id).get("respetar_ley_2300", True)),
+            "perfil_completo": empresas.perfil_de(emp_id)["completo"],
             "agente": {"bedrock": b.bedrock.disponible, "llm": b.motor, "llm_error": b.error, "jev": config.jev_disponible,
                        "dapta_voz_real": CanalVozDapta(emp_id).real, "correo_real": config.correo_real},
             "modo_prueba": {"activo": config.modo_prueba, "telefono": config.telefono_prueba, "correos": config.correos_prueba}}
@@ -473,7 +477,7 @@ def api_lead_mensaje(request: Request, lead_id: int, canal: str = "correo", idio
         if not l or l.empresa_id != emp_id:
             return JSONResponse({"error": "no existe"}, status_code=404)
     idioma = idioma if idioma in IDIOMAS else idioma_de(l, emp_id)
-    texto, info = agente.redactar_mensaje(l, canal, empresas.icp_de(emp_id), idioma=idioma)
+    texto, info = agente.redactar_mensaje(l, canal, empresas.icp_de(emp_id), idioma=idioma, perfil=empresas.perfil_de(emp_id))
     return {"lead_id": lead_id, "canal": canal, "idioma": idioma, "texto": texto, **info}
 
 
@@ -630,6 +634,11 @@ def api_registro(entrada: RegistroEntrada):
     texto_icp = entrada.icp_texto.strip()
     icp, _info = agente.interpretar_icp(texto_icp) if texto_icp else (ICP(), {"motor": "defecto"})
     e = empresas.crear(nombre, email, texto_icp, icp.__dict__)
+    rues = entrada.rues or {}
+    if entrada.nit.strip() or rues:
+        perfil_inicial = {"nombre": nombre, "nit": (entrada.nit or rues.get("nit") or "").strip(), "ciudad": rues.get("ciudad", ""), "sector": rues.get("sector", ""),
+                          "razon_social": rues.get("razon_social", ""), "ciiu": rues.get("ciiu", "")}
+        empresas.actualizar(e.id, config={**empresas.config_de(e.id), "perfil": perfil_inicial})
     try:
         c.admin_create_user(UserPoolId=cognito.pool_id, Username=email, MessageAction="SUPPRESS",
                             UserAttributes=[{"Name": "email", "Value": email}, {"Name": "email_verified", "Value": "true"},
@@ -639,6 +648,52 @@ def api_registro(entrada: RegistroEntrada):
         return JSONResponse({"error": f"Cognito: {str(ex)[:200]}"}, status_code=400)
     anotar("registro", f"Empresa {e.id} '{nombre}' registrada por {email} (admin)", e.id, email=email)
     return {"ok": True, "empresa_id": e.id, "email": email}
+
+
+class NitEntrada(BaseModel):
+    nit: str
+
+
+class SitioEntrada(BaseModel):
+    url: str
+
+
+class SugerenciaEntrada(BaseModel):
+    nombre: str = ""
+    rues: dict | None = None
+    sitio: dict | None = None
+    notas: str = ""
+
+
+@app.post("/api/nit")
+def api_nit(entrada: NitEntrada):
+    """Público (sirve en el registro): la empresa en el RUES por NIT, para llenar nombre, ciudad y sector sin escribirlos."""
+    from .. import perfil
+    datos = perfil.buscar_nit(entrada.nit)
+    if not datos:
+        return JSONResponse({"error": "ese NIT no aparece en el RUES; puede escribir los datos a mano"}, status_code=404)
+    return datos
+
+
+@app.post("/api/empresa/sitio")
+def api_empresa_sitio(request: Request, entrada: SitioEntrada):
+    """Lee la página principal de la empresa (título, descripción, texto) para que el agente proponga el perfil."""
+    from .. import perfil
+    r = perfil.leer_sitio(entrada.url)
+    if r.get("error"):
+        return JSONResponse(r, status_code=400)
+    return {**r, "texto": r["texto"][:600]}
+
+
+@app.post("/api/empresa/sugerir")
+def api_empresa_sugerir(request: Request, entrada: SugerenciaEntrada):
+    """Propuesta guiada del perfil comercial y del cliente ideal a partir del RUES, la página y las notas; la persona corrige y guarda."""
+    from .. import perfil
+    sitio = entrada.sitio
+    if sitio and sitio.get("url") and not sitio.get("texto"):
+        sitio = {**sitio, **{k: v for k, v in perfil.leer_sitio(sitio["url"]).items() if k == "texto"}}
+    sugerido, info = perfil.sugerir(entrada.nombre, entrada.rues, sitio, entrada.notas)
+    return {"sugerencia": sugerido, **info}
 
 
 @app.post("/api/usuarios")

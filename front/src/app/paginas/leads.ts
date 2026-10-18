@@ -11,26 +11,26 @@ const ESTADOS: [string, string][] = [['', 'Todos los estados'], ['listo', 'Listo
   imports: [FormsModule],
   template: `
     <div class="page-head">
-      <div><h1>Leads</h1><p>Las empresas encontradas, con su puntaje contra el cliente ideal y lo que ha pasado con cada una.</p></div>
+      <div><span class="eyebrow">Leads</span><h1>Las empresas <em>encontradas</em></h1><p>Cuánto encaja cada una con su cliente ideal y qué ha pasado con ella.</p></div>
       <div class="row"><button class="btn btn-secondary" (click)="exportar()">Exportar CSV</button>@if (urlExport()) {<a [href]="urlExport()" target="_blank">Descargar (15 min)</a>}</div>
     </div>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <input [(ngModel)]="q" placeholder="Buscar por nombre" style="max-width:260px" (keyup.enter)="cargar()">
         <select [(ngModel)]="estado" style="max-width:220px" (change)="cargar()">@for (e of estados; track e[0]) {<option [value]="e[0]">{{ e[1] }}</option>}</select>
-        <select [(ngModel)]="icp" style="max-width:190px" (change)="cargar()"><option value="">Todo el ICP</option><option value="pasa">Pasan</option><option value="revisar">Por revisar</option><option value="descarta">Descartados</option></select>
+        <select [(ngModel)]="icp" style="max-width:190px" (change)="cargar()"><option value="">Encaje: todos</option><option value="pasa">Encajan</option><option value="revisar">Por revisar</option><option value="descarta">No encajan</option></select>
         <input [(ngModel)]="fuente" placeholder="Fuente (reps, men…)" style="max-width:170px" (keyup.enter)="cargar()">
         <button class="btn btn-secondary" (click)="cargar()">Filtrar</button>
         <span class="muted small">{{ leads().length }} leads</span>
       </div>
       <div class="table-wrap"><table class="table">
-        <thead><tr><th>Empresa</th><th>Fuente</th><th>Sector</th><th>Ciudad</th><th>Canales</th><th class="num">ICP</th><th>Estado</th><th>Señales</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Fuente</th><th>Sector</th><th>Ciudad</th><th>Canales</th><th class="num">Encaje</th><th>Estado</th><th>Señales</th></tr></thead>
         <tbody>
           @for (l of leads(); track l.id) {
             <tr class="row-link" (click)="abrir(l.id)">
               <td><b>{{ titulo(l.razon_social) }}</b> @if ((l.fuentes_todas?.length ?? 0) > 1) {<span class="tag tag-info">{{ l.fuentes_todas?.length }} fuentes</span>}</td>
               <td>{{ l.fuente_clave }}</td><td>{{ l.sector }}</td><td>{{ titulo(l.ciudad) }}</td><td>{{ l.canales?.join(', ') || '–' }}</td>
-              <td class="num"><span class="tag" [class]="'tag ' + l.icp_estado">{{ l.icp_score ?? '–' }}</span></td><td><span class="tag" [class]="'tag ' + claseEstado(l.estado)">{{ nombreEstado(l.estado) }}</span></td>
+              <td class="num"><span class="tag" [class]="'tag ' + l.icp_estado">{{ l.icp_score != null ? (l.icp_score * 100).toFixed(0) + ' %' : '–' }}</span></td><td><span class="tag" [class]="'tag ' + claseEstado(l.estado)">{{ nombreEstado(l.estado) }}</span></td>
               <td class="muted small">{{ claves(l.senales) }}</td>
             </tr>
           } @empty { <tr><td colspan="8"><div class="empty"><b>Sin leads con esos filtros</b>Cambie el filtro o haga una búsqueda nueva.</div></td></tr> }

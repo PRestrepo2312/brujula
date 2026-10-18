@@ -7,7 +7,7 @@ import { ApiService } from '../core/api.service';
   imports: [RouterLink],
   template: `
     <div class="page-head">
-      <div><h1>Notificaciones</h1><p>Búsquedas que terminan, lotes que salen, leads que responden y calificaciones de Dapta.</p></div>
+      <div><span class="eyebrow">Notificaciones</span><h1>Lo que <em>pasó</em></h1><p>Búsquedas que terminan, lotes que salen, leads que responden y calificaciones de Dapta.</p></div>
       <button class="btn btn-secondary" (click)="leerTodas()">Marcar todas como leídas</button>
     </div>
     <div class="card">

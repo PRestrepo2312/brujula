@@ -79,7 +79,8 @@ class CanalVozDapta(Canal):
         return self._mcp
 
     def enviar(self, lead: Lead, intento: Intento) -> Resultado:
-        variables = variables_voz(lead)
+        from ..empresas import perfil_de
+        variables = variables_voz(lead, perfil_de(intento.empresa_id))
         texto = json.dumps(variables, ensure_ascii=False)
         telefono = lead.telefono
         detalle: dict = {"variables": variables}

@@ -13,7 +13,7 @@ import { ApiService } from '../core/api.service';
       <div class="page-head">
         <div><h1>{{ titulo(d.lead.razon_social) }}</h1>
           <p>{{ d.lead.fuente_clave }} · {{ d.lead.sector }} {{ d.lead.subsector }} · {{ titulo(d.lead.ciudad) }}@if (d.lead.identificacion) { · NIT {{ d.lead.identificacion }}}@if ((d.lead.fuentes_todas?.length ?? 0) > 1) { · también en {{ d.lead.fuentes_todas.join(', ') }}}</p></div>
-        <div class="row"><span class="tag" [class]="'tag ' + d.lead.icp_estado">ICP {{ d.lead.icp_estado }} · {{ d.lead.icp_score ?? '–' }}</span><span class="tag tag-info">{{ d.lead.estado }}</span></div>
+        <div class="row"><span class="tag" [class]="'tag ' + d.lead.icp_estado">{{ d.lead.icp_estado === 'pasa' ? 'Encaja' : d.lead.icp_estado === 'revisar' ? 'Por revisar' : d.lead.icp_estado === 'descarta' ? 'No encaja' : 'Sin medir' }} · {{ d.lead.icp_score != null ? (d.lead.icp_score * 100).toFixed(0) + ' %' : '–' }}</span><span class="tag tag-info">{{ d.lead.estado }}</span></div>
       </div>
       <div class="grid cols-3">
         <div class="card">

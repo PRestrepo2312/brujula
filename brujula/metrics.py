@@ -124,4 +124,4 @@ def recomendacion(cruces: dict) -> str:
         con_cpl.sort(key=lambda kv: kv[1]["cpl"])
         return (f"Aún sin calificaciones. Por lead que respondió, lo más barato es {con_cpl[0][0].replace('|', ' + ')} "
                 f"(USD {con_cpl[0][1]['cpl']:.2f}) y lo más caro {con_cpl[-1][0].replace('|', ' + ')} (USD {con_cpl[-1][1]['cpl']:.2f}).")
-    return "Todavía no hay respuestas suficientes para comparar canales: el reparto sigue los priors."
+    return "Todavía no hay respuestas suficientes para comparar canales: el reparto sigue los valores iniciales."

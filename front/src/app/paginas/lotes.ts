@@ -7,7 +7,7 @@ import { AuthService } from '../core/auth.service';
   selector: 'pagina-lotes',
   imports: [FormsModule],
   template: `
-    <div class="page-head"><div><h1>Lotes</h1><p>Cada lote reparte un presupuesto de contactos entre fuentes y canales; la brújula decide el reparto con lo aprendido y lo explica.</p></div></div>
+    <div class="page-head"><div><span class="eyebrow">Lotes</span><h1>Contactar <em>por tandas</em></h1><p>Cada lote reparte un número de contactos entre fuentes y canales; la brújula decide el reparto con lo que ya funcionó y lo explica en una frase.</p></div></div>
     <div class="grid cols-main">
       <div>
         <div class="card">
@@ -21,9 +21,9 @@ import { AuthService } from '../core/auth.service';
           }
           <div class="grid cols-2">
             <div class="field"><label>Cuántos leads</label><input type="number" [(ngModel)]="n" min="1" max="500"></div>
-            <div class="field"><label>Reparto</label><select [(ngModel)]="modo"><option value="brujula">Lo decide la brújula</option><option value="manual">Manual (según priors)</option></select></div>
+            <div class="field"><label>Reparto</label><select [(ngModel)]="modo"><option value="brujula">Lo decide la brújula</option><option value="manual">Manual (valores iniciales)</option></select></div>
           </div>
-          @if (estado() && !estado().ventana_ok && estado().respetar_ley_2300 !== false) {<div class="field"><label>Motivo del override</label><input [(ngModel)]="motivo" placeholder="demo con los números del equipo"></div>}
+          @if (estado() && !estado().ventana_ok && estado().respetar_ley_2300 !== false) {<div class="field"><label>Motivo de la excepción de horario</label><input [(ngModel)]="motivo" placeholder="demo con los números del equipo"></div>}
           <button class="btn btn-primary btn-lg" (click)="crear()" [disabled]="ocupado()">{{ ocupado() ? 'Enviando…' : 'Preparar y enviar' }}</button>
           @if (resultado(); as r) {
             @if (r.error) {<div class="banner banner-danger">{{ r.error }}</div>} @else {
@@ -39,7 +39,7 @@ import { AuthService } from '../core/auth.service';
           <h2>Últimos lotes</h2>
           <div class="table-wrap"><table class="table">
             <thead><tr><th>#</th><th>Cuándo</th><th>Reparto</th><th>Explicación</th></tr></thead>
-            <tbody>@for (l of lotes(); track l.id) {<tr><td class="muted">{{ l.id }}</td><td class="small">{{ fecha(l.creado_en) }}</td><td>{{ l.modo === 'brujula' ? 'brújula' : 'manual' }}@if (l.fuera_ventana) { <span class="tag tag-warn">override: {{ l.override_usuario || 'config' }}</span>}</td><td class="small muted">{{ l.explicacion }}</td></tr>} @empty {<tr><td colspan="4"><div class="empty">Sin lotes todavía.</div></td></tr>}</tbody>
+            <tbody>@for (l of lotes(); track l.id) {<tr><td class="muted">{{ l.id }}</td><td class="small">{{ fecha(l.creado_en) }}</td><td>{{ l.modo === 'brujula' ? 'brújula' : 'manual' }}@if (l.fuera_ventana) { <span class="tag tag-warn">excepción: {{ l.override_usuario || 'configuración' }}</span>}</td><td class="small muted">{{ l.explicacion }}</td></tr>} @empty {<tr><td colspan="4"><div class="empty">Sin lotes todavía.</div></td></tr>}</tbody>
           </table></div>
         </div>
         <div class="card">

@@ -16,7 +16,7 @@ from .config import config
 
 COOKIE = "brujula_sesion"
 DURACION_SESION_SEG = 12 * 3600
-PUBLICAS = ("/login", "/callback", "/logout", "/healthz", "/r/", "/webhook/", "/cron/", "/api/docs", "/api/openapi.json", "/api/registro", "/static/", "/app")
+PUBLICAS = ("/login", "/callback", "/logout", "/healthz", "/r/", "/webhook/", "/cron/", "/api/docs", "/api/openapi.json", "/api/registro", "/api/nit", "/static/", "/app")
 
 
 def validar_clave(clave: str) -> str | None:

@@ -48,6 +48,14 @@ Parameters:
     Type: String
     Default: ""
     Description: Agente de texto (WhatsApp) de Dapta cuyas conversaciones se sincronizan.
+  OpenAiApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Clave de OpenAI para el agente de texto (modelo barato) mientras Bedrock no esté habilitado.
+  OpenAiModel:
+    Type: String
+    Default: gpt-4.1-mini
   Despliegue:
     Type: String
     Default: ""
@@ -128,7 +136,7 @@ Resources:
       Name: brujula/env
       SecretString: !Sub |
         {"DAPTA_API_KEY":"${DaptaApiKey}","DAPTA_AGENT_ID":"${DaptaAgentId}","DAPTA_SEQUENCE_ID":"${DaptaSequenceId}","DAPTA_TEXT_AGENT_ID":"${DaptaTextAgentId}",
-         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}","DENUE_TOKEN":"${DenueToken}",
+         "OPENROUTER_API_KEY":"${OpenRouterApiKey}","OPENAI_API_KEY":"${OpenAiApiKey}","RESEND_API_KEY":"${ResendApiKey}","CRON_KEY":"${CronKey}","SESSION_SECRET":"${SessionSecret}","DENUE_TOKEN":"${DenueToken}",
          "DATABASE_URL":"postgresql+psycopg://brujula:${DbPassword}@${Db.Endpoint.Address}:5432/brujula?sslmode=require"}
 
   # --- Archivos: bucket privado con URL prefirmadas ---
@@ -192,6 +200,7 @@ Resources:
           EXPORT_BUCKET: !Ref Exportaciones
           CORS_ORIGINS: !Ref CorsOrigins
           DESPLIEGUE: !Ref Despliegue
+          OPENAI_MODEL: !Ref OpenAiModel
           MODO_PRUEBA: !Ref ModoPrueba
           TELEFONO_PRUEBA: !Ref TelefonoPrueba
           CORREOS_PRUEBA: !Ref CorreosPrueba

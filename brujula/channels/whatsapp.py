@@ -19,6 +19,7 @@ class CanalWhatsApp(Canal):
         return False   # se activa cuando exista línea y plantilla aprobada
 
     def enviar(self, lead: Lead, intento: Intento) -> Resultado:
-        texto = whatsapp_texto(lead, idioma_de(lead, intento.empresa_id))
+        from ..empresas import perfil_de
+        texto = whatsapp_texto(lead, idioma_de(lead, intento.empresa_id), perfil=perfil_de(intento.empresa_id))
         return Resultado(estado="enviado", costo_usd=config.tarifas.whatsapp_conversacion_co, ref_externa=f"sim_{secrets.token_hex(6)}",
                          proveedor="simulado", mensaje=texto, detalle={"nota": "sin plantilla de WhatsApp aprobada por Meta: envío simulado"})

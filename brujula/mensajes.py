@@ -13,6 +13,14 @@ IDIOMA_POR_PAIS = {"CO": "es", "MX": "es", "BR": "pt", "US": "en"}
 REMITENTE = "el equipo Brújula"
 PROPOSITO = ("estamos probando una herramienta que ayuda a negocios como el suyo a atender y calificar a los clientes que "
              "escriben o llaman, sin perder ninguno")
+PERFIL_BRUJULA = {"nombre": "Brújula", "que_ofrece": PROPOSITO, "remitente": REMITENTE}
+
+
+def _perfil(perfil: dict | None) -> dict:
+    """El perfil comercial con el que se presenta la empresa (nombre, qué ofrece, quién firma); sin perfil, el de Brújula."""
+    p = {**PERFIL_BRUJULA, **{k: v for k, v in (perfil or {}).items() if v}}
+    p["remitente"] = p.get("remitente") or f"el equipo de {p['nombre']}"
+    return p
 
 SENALES = {
     "es": {"contrato_secop": "vimos que ganaron un contrato público hace poco",
@@ -42,32 +50,32 @@ TEXTOS = {
     "es": {
         "asunto": "{nombre}: ¿cuántos clientes se pierden por no contestar a tiempo?",
         "hola": "Hola, equipo de {nombre}.",
-        "presentacion": f"Les escribe {REMITENTE}: {PROPOSITO}. Les escribimos porque {{senal}}.",
+        "presentacion": "Les escribe {remitente}: {que_ofrece}. Les escribimos porque {senal}.",
         "pregunta": "¿Les sirve una llamada de 5 minutos para mostrarles cómo funciona?",
         "si": "Sí, me interesa", "no": "No, gracias",
         "baja_texto": "Si no quieren recibir más mensajes nuestros, este enlace los da de baja de inmediato",
-        "pie": "Equipo Brújula. Si no quieren recibir más mensajes nuestros,", "pie_enlace": "este enlace los da de baja", "pie_fin": "de inmediato.",
-        "whatsapp": "Hola, equipo de {nombre}. Les escribe el equipo Brújula: {proposito}. ¿Les sirve una llamada de 5 minutos? Responda SÍ o NO. Para no recibir más mensajes responda BAJA.",
+        "pie": "{marca}. Si no quieren recibir más mensajes nuestros,", "pie_enlace": "este enlace los da de baja", "pie_fin": "de inmediato.",
+        "whatsapp": "Hola, equipo de {nombre}. Les escribe {remitente}: {que_ofrece}. ¿Les sirve una llamada de 5 minutos? Responda SÍ o NO. Para no recibir más mensajes responda BAJA.",
     },
     "pt": {
         "asunto": "{nombre}: quantos clientes se perdem por não responder a tempo?",
         "hola": "Olá, equipe da {nombre}.",
-        "presentacion": "Aqui é a equipe Brújula: estamos testando uma ferramenta que ajuda negócios como o seu a atender e qualificar os clientes que escrevem ou ligam, sem perder nenhum. Escrevemos porque {senal}.",
+        "presentacion": "Aqui é {remitente}: {que_ofrece}. Escrevemos porque {senal}.",
         "pregunta": "Uma ligação de 5 minutos para mostrar como funciona ajudaria?",
         "si": "Sim, tenho interesse", "no": "Não, obrigado",
         "baja_texto": "Se não quiserem receber mais mensagens nossas, este link cancela o envio imediatamente",
-        "pie": "Equipe Brújula. Se não quiserem receber mais mensagens nossas,", "pie_enlace": "este link cancela o envio", "pie_fin": "imediatamente.",
-        "whatsapp": "Olá, equipe da {nombre}. Aqui é a equipe Brújula: estamos testando uma ferramenta que ajuda negócios como o seu a atender e qualificar os clientes que escrevem ou ligam. Uma ligação de 5 minutos ajudaria? Responda SIM ou NÃO. Para não receber mais mensagens responda SAIR.",
+        "pie": "{marca}. Se não quiserem receber mais mensagens nossas,", "pie_enlace": "este link cancela o envio", "pie_fin": "imediatamente.",
+        "whatsapp": "Olá, equipe da {nombre}. Aqui é {remitente}: {que_ofrece}. Uma ligação de 5 minutos ajudaria? Responda SIM ou NÃO. Para não receber mais mensagens responda SAIR.",
     },
     "en": {
         "asunto": "{nombre}: how many customers are lost by not answering in time?",
         "hola": "Hello, {nombre} team.",
-        "presentacion": "This is the Brújula team: we are testing a tool that helps businesses like yours answer and qualify the customers who write or call, without losing any. We are reaching out because {senal}.",
+        "presentacion": "This is {remitente}: {que_ofrece}. We are reaching out because {senal}.",
         "pregunta": "Would a 5-minute call to show you how it works be useful?",
         "si": "Yes, I'm interested", "no": "No, thanks",
         "baja_texto": "If you don't want to hear from us again, this link unsubscribes you immediately",
-        "pie": "Brújula team. If you don't want to hear from us again,", "pie_enlace": "this link unsubscribes you", "pie_fin": "immediately.",
-        "whatsapp": "Hello, {nombre} team. This is the Brújula team: we are testing a tool that helps businesses like yours answer and qualify the customers who write or call. Would a 5-minute call be useful? Reply YES or NO. To stop receiving messages reply STOP.",
+        "pie": "{marca}. If you don't want to hear from us again,", "pie_enlace": "this link unsubscribes you", "pie_fin": "immediately.",
+        "whatsapp": "Hello, {nombre} team. This is {remitente}: {que_ofrece}. Would a 5-minute call be useful? Reply YES or NO. To stop receiving messages reply STOP.",
     },
 }
 
@@ -116,23 +124,27 @@ def asunto_correo(lead: Lead, idioma: str = "es") -> str:
     return _t(idioma)["asunto"].format(nombre=nombre_bonito(lead.razon_social))
 
 
-def cuerpo_correo(lead: Lead, url_si: str, url_no: str, url_baja: str, idioma: str = "es") -> tuple[str, str]:
-    """Devuelve (texto plano, html). El HTML lleva la marca y botones; el texto plano lleva los mismos enlaces."""
+def cuerpo_correo(lead: Lead, url_si: str, url_no: str, url_baja: str, idioma: str = "es", perfil: dict | None = None) -> tuple[str, str]:
+    """Devuelve (texto plano, html). El HTML lleva la marca y botones; el texto plano lleva los mismos enlaces. La empresa se presenta con su perfil."""
     t = _t(idioma)
+    p = _perfil(perfil)
     nombre = nombre_bonito(lead.razon_social)
     senal = senal_en_palabras(lead, idioma)
     texto = (f"{t['hola'].format(nombre=nombre)}\n\n"
-             f"{t['presentacion'].format(senal=senal)}\n\n"
+             f"{t['presentacion'].format(senal=senal, remitente=p['remitente'], que_ofrece=p['que_ofrece'])}\n\n"
              f"{t['pregunta']}\n"
              f"{t['si']}: {url_si}\n{t['no']}: {url_no}\n\n"
              f"{t['baja_texto']}: {url_baja}")
-    return texto, html_correo(texto, url_si, url_no, url_baja, idioma=idioma)
+    return texto, html_correo(texto, url_si, url_no, url_baja, idioma=idioma, perfil=p)
 
 
-def html_correo(texto: str, url_si: str, url_no: str, url_baja: str, nota: str = "", idioma: str = "es") -> str:
-    """HTML con la marca de Brújula a partir del texto plano: las líneas con enlaces se vuelven botones y pie."""
+def html_correo(texto: str, url_si: str, url_no: str, url_baja: str, nota: str = "", idioma: str = "es", perfil: dict | None = None) -> str:
+    """HTML con la marca de la empresa a partir del texto plano: las líneas con enlaces se vuelven botones y pie."""
     import html as _h
     t = _t(idioma)
+    p = _perfil(perfil)
+    marca = _h.escape(p["nombre"].upper())
+    pie = _h.escape(t["pie"].format(marca=p["nombre"]))
     marcas = (url_si, url_no, url_baja, "{url_si}", "{url_no}", "{url_baja}")
     parrafos = []
     for bloque in texto.split("\n\n"):
@@ -145,29 +157,33 @@ def html_correo(texto: str, url_si: str, url_no: str, url_baja: str, nota: str =
         '<!doctype html><html><body style="margin:0;padding:0;background:#FAF8F3;font-family:\'Segoe UI\',Arial,sans-serif">'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF8F3;padding:24px 12px"><tr><td align="center">'
         '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #E6E1D8;border-radius:12px">'
-        '<tr><td style="background:#2E2A5A;padding:14px 24px;color:#ffffff;font-size:12px;letter-spacing:0.18em;font-weight:bold;border-radius:12px 12px 0 0">'
-        '<span style="color:#E3661B">&#9679;</span>&nbsp; BR&Uacute;JULA</td></tr>'
+        '<tr><td style="background:#0C1733;padding:14px 24px;color:#ffffff;font-size:12px;letter-spacing:0.18em;font-weight:bold;border-radius:12px 12px 0 0">'
+        f'<span style="color:#2563EB">&#9679;</span>&nbsp; {marca}</td></tr>'
         f'<tr><td style="padding:24px 24px 6px">{nota_html}{cuerpo}</td></tr>'
         '<tr><td style="padding:4px 24px 22px">'
-        f'<a href="{url_si}" style="display:inline-block;background:#E3661B;color:#ffffff;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">{_h.escape(t["si"])}</a>'
-        f'&nbsp;&nbsp;<a href="{url_no}" style="display:inline-block;border:1px solid #2E2A5A;color:#2E2A5A;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px">{_h.escape(t["no"])}</a>'
+        f'<a href="{url_si}" style="display:inline-block;background:#2563EB;color:#ffffff;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">{_h.escape(t["si"])}</a>'
+        f'&nbsp;&nbsp;<a href="{url_no}" style="display:inline-block;border:1px solid #0C1733;color:#0C1733;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px">{_h.escape(t["no"])}</a>'
         '</td></tr>'
         '<tr><td style="padding:14px 24px 20px;border-top:1px solid #E6E1D8;font-size:12px;color:#7A7891;line-height:1.5">'
-        f'{_h.escape(t["pie"])} <a href="{url_baja}" style="color:#7A7891">{_h.escape(t["pie_enlace"])}</a> {_h.escape(t["pie_fin"])}'
+        f'{pie} <a href="{url_baja}" style="color:#7A7891">{_h.escape(t["pie_enlace"])}</a> {_h.escape(t["pie_fin"])}'
         '</td></tr></table></td></tr></table></body></html>'
     )
 
 
-def variables_voz(lead: Lead) -> dict:
-    """Variables que el agente de voz de Dapta puede leer durante la llamada (el agente habla español)."""
+def variables_voz(lead: Lead, perfil: dict | None = None) -> dict:
+    """Variables que el agente de voz de Dapta lee durante la llamada (el agente habla español): el lead y quién llama."""
+    p = _perfil(perfil)
     return {
         "empresa": nombre_bonito(lead.razon_social),
         "ciudad": lead.ciudad.title(),
         "sector": lead.sector or "servicios",
         "senal": senal_en_palabras(lead, "es"),
         "contact_email": lead.correo or "",
+        "remitente": p["nombre"],
+        "propuesta": p["que_ofrece"],
     }
 
 
-def whatsapp_texto(lead: Lead, idioma: str = "es") -> str:
-    return _t(idioma)["whatsapp"].format(nombre=nombre_bonito(lead.razon_social), proposito=PROPOSITO)
+def whatsapp_texto(lead: Lead, idioma: str = "es", perfil: dict | None = None) -> str:
+    p = _perfil(perfil)
+    return _t(idioma)["whatsapp"].format(nombre=nombre_bonito(lead.razon_social), remitente=p["remitente"], que_ofrece=p["que_ofrece"])

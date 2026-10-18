@@ -37,4 +37,9 @@ export class App {
   rolTexto(): string {
     return ({ superadmin: 'Superadmin de la plataforma', admin: 'Administrador de la empresa', usuario: 'Usuario' } as Record<string, string>)[this.auth.rol] || this.auth.rol;
   }
+  inicial(): string { return (this.auth.email || 'B').trim().charAt(0).toUpperCase(); }
+  nombreMotor(m: string): string {
+    if (!m || m === 'reglas') return 'básica';
+    if (m.startsWith('openai')) return 'OpenAI'; if (m.startsWith('bedrock')) return 'Bedrock'; if (m.startsWith('openrouter')) return 'Nova'; return m;
+  }
 }

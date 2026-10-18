@@ -90,6 +90,6 @@ def repartir(brazos: list[Brazo], n: int, semilla: int | None = None, muestras: 
         exp = (f"Reparto {partes}. Manda {mejor.clave.replace('|', ' + ')}: {mejor.exitos} éxitos en {mejor.intentos} intentos "
                f"a USD {mejor.costo_medio():.3f} por intento, el menor costo esperado por lead calificado.")
     else:
-        exp = (f"Reparto {partes}. Todavía sin resultados: deciden los priors (el correo es casi gratis pero necesita la llamada "
+        exp = (f"Reparto {partes}. Todavía sin resultados: deciden los valores iniciales (el correo es casi gratis pero necesita la llamada "
                f"de Dapta para calificar; la voz califica en la misma llamada). Cada canal recibe al menos el 15 % para explorar.")
     return reparto, exp
